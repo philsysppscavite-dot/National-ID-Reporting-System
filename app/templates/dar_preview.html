@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Report Preview</p>
+    <h2>Daily Accomplishment Report (DAR)</h2>
+  </div>
+  <div class="actions">
+    <form method="get" class="filters" style="display:inline">
+      <select name="employee_id">
+        <option value="">All Employees</option>
+        {% for employee in employees %}
+        <option value="{{ employee['id'] }}" {% if employee_id and employee_id|int == employee['id'] %}selected{% endif %}>{{ employee['full_name'] }}</option>
+        {% endfor %}
+      </select>
+      <input type="date" name="start_date" value="{{ start_date or '' }}">
+      <input type="date" name="end_date" value="{{ end_date or '' }}">
+      <button type="submit">Apply Filters</button>
+    </form>
+    <form method="post" action="{{ url_for('dar_download') }}" style="display:inline; margin-left:8px;">
+      <input type="hidden" name="employee_id" value="{{ employee_id or '' }}">
+      <input type="hidden" name="start_date" value="{{ start_date or '' }}">
+      <input type="hidden" name="end_date" value="{{ end_date or '' }}">
+      <button type="submit">📥 Download Excel</button>
+    </form>
+    <a class="button-link secondary" href="{{ url_for('dar_export_all_pdf', start_date=start_date or '', end_date=end_date or '') }}" style="margin-left:8px;">📄 Export All Employees DAR (PDF)</a>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="report-preview">
+    <table class="preview-table">
+      <thead>
+        <tr>
+          <th colspan="6">
+            <div style="text-align:center;">
+              <div>Republic of the Philippines</div>
+              <div><strong>PHILIPPINE STATISTICS AUTHORITY</strong></div>
+              <div><strong>Daily Accomplishment Report</strong></div>
+            </div>
+          </th>
+        </tr>
+        <tr>
+          <th>Province:</th><td>{{ rows[0].get('province') if rows and rows[0].get('province') else 'Cavite' }}</td>
+          <th>City/Municipality:</th><td>{{ rows[0].get('city_municipality') if rows and rows[0].get('city_municipality') else 'Trece Martires City' }}</td>
+          <th>Month/Year:</th><td>{{ start_date or '' }}</td>
+        </tr>
+        <tr>
+          <th>Date</th>
+          <th>Employee</th>
+          <th>Total</th>
+          <th colspan="3">Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row['date'] }}</td>
+          <td>{{ row['name'] }}</td>
+          <td>{{ row['total'] }}</td>
+          <td colspan="3">
+            {% for service in service_types %}
+              {% if row[service] %}
+                <div>{{ service }}: {{ row[service] }}</div>
+              {% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="preview-signatories">
+      <div class="signatory-block">
+        <div class="sign-label">Prepared by</div>
+        <div class="sign-line"></div>
+        <div class="sign-name">{{ (employee_name or (prepared_by or {}).get('name') or '') | upper }}</div>
+        <div class="sign-position">{{ (prepared_by or {}).get('position') or 'Registration Kit Operator' }}</div>
+      </div>
+      <div class="signatory-block">
+        <div class="sign-label">Verified as correct by</div>
+        <div class="sign-line"></div>
+        <div class="sign-name">{{ ((verified_by or {}).get('name') or '') | upper }}</div>
+        <div class="sign-position">{{ (verified_by or {}).get('position') or 'Focal Person' }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

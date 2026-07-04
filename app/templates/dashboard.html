@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Dashboard</p>
+    <h2>Monthly accomplishment monitoring and report export</h2>
+    <p class="subtle">Track employee output, monitor NID concerns, and export accomplishment reports.</p>
+  </div>
+  <form method="get" class="month-filter compact-form">
+    <label for="start_date">Start Date</label>
+    <input id="start_date" type="date" name="start_date" value="{{ start_date }}">
+    <label for="end_date">End Date</label>
+    <input id="end_date" type="date" name="end_date" value="{{ end_date }}">
+    <button type="submit">Refresh</button>
+  </form>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card">
+    <span>Active Employees</span>
+    <strong>{{ active_employees }}</strong>
+  </article>
+  <article class="stat-card">
+    <span>Monthly Output Rows</span>
+    <strong>{{ outputs|length }}</strong>
+  </article>
+  <article class="stat-card">
+    <span>Total Quantity</span>
+    <strong>{{ total_quantity }}</strong>
+  </article>
+  <article class="stat-card">
+    <span>Open NID Concerns</span>
+    <strong>{{ nid_concern_matrix | sum(attribute='Open') }}</strong>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>Google Sheet Import</h3>
+    <p>Use a CSV export URL from your Google Sheet to bring in output data.</p>
+  </div>
+  <form method="post" action="{{ url_for('import_google_sheet') }}" class="stack-form">
+    <input type="url" name="csv_url" placeholder="https://docs.google.com/spreadsheets/d/.../edit?usp=sharing" required>
+    <button type="submit">Import Sheet Data</button>
+  </form>
+  <form method="post" action="{{ url_for('clear_imported_data') }}" class="stack-form" onsubmit="return confirm('Delete all Google Sheet imported rows from the database?');">
+    <input type="hidden" name="source_type" value="google_sheet">
+    <button type="submit" class="button-link secondary">Clear Google Sheet Imported Data</button>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>NID Concern Matrix</h3>
+    <p>Live count of registered tickets by type and status. Use this to track backlog and escalations at a glance.</p>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Concern Type</th>
+          {% for status in nid_concern_statuses %}
+          <th>{{ status }}</th>
+          {% endfor %}
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in nid_concern_matrix %}
+        <tr>
+          <td>{{ row.concern_type }}</td>
+          {% for status in nid_concern_statuses %}
+          <td class="num {{ 'flag' if status == 'Open' and row.get(status, 0) > 0 else '' }}">{{ row.get(status, 0) }}</td>
+          {% endfor %}
+          <td class="num"><strong>{{ row.total }}</strong></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ nid_concern_statuses|length + 2 }}">No tickets logged yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel-subhead">
+    <h4>Log a New Ticket</h4>
+  </div>
+  <form method="post" action="{{ url_for('nid_concern_create') }}" class="grid-form compact-grid">
+    <label>Date
+      <input type="date" name="date_reported" required>
+    </label>
+    <label>TRN / Reference No. <span class="subtle">(exactly 29 digits)</span>
+      <input type="text" name="trn_or_ref_no" inputmode="numeric" pattern="\d{29}" maxlength="29"
+             title="Must be exactly 29 digits" placeholder="29-digit TRN / reference number" required>
+    </label>
+    <label>Concern Type
+      <select name="concern_type">
+        {% for concern_type in nid_concern_types %}
+        <option value="{{ concern_type }}">{{ concern_type }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Reported By
+      <input type="text" value="{{ current_full_name }}" disabled>
+    </label>
+    <label class="full-row">Description
+      <textarea name="description" rows="2" placeholder="Describe the concern..."></textarea>
+    </label>
+    <div class="full-row">
+      <button type="submit">Log Ticket</button>
+    </div>
+  </form>
+
+  {% if recent_nid_concerns or ticket_filters_active %}
+  <div class="panel-subhead">
+    <h4>Recent Tickets</h4>
+  </div>
+  <form method="get" class="grid-form compact-grid" style="margin-bottom:12px;">
+    <input type="hidden" name="start_date" value="{{ start_date }}">
+    <input type="hidden" name="end_date" value="{{ end_date }}">
+    <label>From
+      <input type="date" name="ticket_date_from" value="{{ ticket_date_from }}">
+    </label>
+    <label>To
+      <input type="date" name="ticket_date_to" value="{{ ticket_date_to }}">
+    </label>
+    <label>Type
+      <select name="ticket_type">
+        <option value="">All Types</option>
+        {% for concern_type in nid_concern_types %}
+        <option value="{{ concern_type }}" {% if ticket_type == concern_type %}selected{% endif %}>{{ concern_type }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div style="display:flex; align-items:flex-end; gap:8px;">
+      <button type="submit">Filter</button>
+      {% if ticket_filters_active %}
+      <a class="button-link secondary" href="{{ url_for('dashboard', start_date=start_date, end_date=end_date) }}">Clear</a>
+      {% endif %}
+    </div>
+  </form>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>TRN / Ref No.</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Progress</th>
+          <th>Reported By</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for concern in recent_nid_concerns %}
+        <tr>
+          <td>{{ concern['date_reported'] }}</td>
+          <td><a href="{{ url_for('nid_concern_detail', concern_id=concern['id']) }}">{{ concern['trn_or_ref_no'] }}</a></td>
+          <td>{{ concern['concern_type'] }}</td>
+          <td>{{ concern['description'] }}</td>
+          <td>
+            <div class="progress-track" title="{{ concern['status'] }}">
+              <div class="progress-fill" style="width: {{ nid_concern_progress_map.get(concern['status'], 0) }}%;"></div>
+            </div>
+            <span class="progress-label">{{ concern['status'] }}</span>
+          </td>
+          <td>{{ concern['reported_by'] }}</td>
+          <td>
+            <a class="button-link secondary" href="{{ url_for('nid_concern_detail', concern_id=concern['id']) }}">Open</a>
+            {% if current_role == ROLE_ADMIN or current_role == ROLE_ISA or concern['reported_by_user_id'] == session.get('user_id') %}
+            <a class="button-link secondary" href="{{ url_for('nid_concern_edit', concern_id=concern['id']) }}">Edit</a>
+            {% endif %}
+            {% if current_role == ROLE_ADMIN or current_role == ROLE_ISA %}
+            <form method="post" action="{{ url_for('nid_concern_delete', concern_id=concern['id']) }}" onsubmit="return confirm('Remove this ticket?');" style="display:inline;">
+              <button type="submit" class="link-button danger">Remove</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">No tickets match this filter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

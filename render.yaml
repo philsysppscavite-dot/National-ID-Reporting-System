@@ -1,0 +1,32 @@
+# Render "Blueprint" — lets Render auto-configure this service from a repo.
+# On render.com: New + -> Blueprint -> select this repo -> Apply.
+# You still need to fill in SECRET_KEY / APP_USERNAME / APP_PASSWORD (marked
+# sync: false below) in the Render dashboard after the first deploy.
+services:
+  - type: web
+    name: philsys-accomplishment-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        sync: false
+      - key: APP_USERNAME
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      # Optional: only set this if you attach a Render persistent disk
+      # below and want the database/reports/uploads to survive redeploys.
+      # - key: INSTANCE_DIR
+      #   value: /data
+
+# Uncomment to attach a persistent disk (paid "Starter" plan or above —
+# Render's free tier does not support disks, so data resets on redeploy
+# without this). See DEPLOYMENT.md for details.
+# disks:
+#   - name: philsys-data
+#     mountPath: /data
+#     sizeGB: 1

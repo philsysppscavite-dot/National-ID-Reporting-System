@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accomplishment Report Dashboard</title>
+  <link rel="icon" type="image/png" href="{{ url_for('logo_file', filename='National ID.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img class="sidebar-logo" src="{{ url_for('logo_file', filename='National ID.png') }}" alt="National ID logo">
+        <div class="brand-copy">
+          <h1>Accomplishment Dashboard</h1>
+          <p>Pure Python reporting workspace</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">Dashboard</a>
+        <a href="{{ url_for('employees') }}" class="{{ 'active' if request.endpoint in ['employees', 'employee_form'] else '' }}">Employees</a>
+        <a href="{{ url_for('schedules') }}" class="{{ 'active' if request.endpoint in ['schedules', 'schedule_form'] else '' }}">Schedule</a>
+        <a href="{{ url_for('outputs') }}" class="{{ 'active' if request.endpoint in ['outputs', 'output_form'] else '' }}">Employee Output</a>
+        <a href="{{ url_for('output_totals') }}" class="{{ 'active' if request.endpoint == 'output_totals' else '' }}">Output Totals</a>
+        <a href="{{ url_for('dar_report') }}" class="{{ 'active' if request.endpoint == 'dar_report' else '' }}">DAR</a>
+        <a href="{{ url_for('city_records') }}" class="{{ 'active' if request.endpoint == 'city_records' else '' }}">City Municipality Record Per Month</a>
+        <a href="{{ url_for('signatories') }}" class="{{ 'active' if request.endpoint in ['signatories', 'signatory_form'] else '' }}">Signatory</a>
+        <a href="{{ url_for('messages_home') }}" class="{{ 'active' if request.endpoint in ['messages_home', 'messages_thread'] else '' }}">
+          Messages{% if unread_dm_total %} <span class="nav-badge">{{ unread_dm_total }}</span>{% endif %}
+        </a>
+        {% if current_role == ROLE_ADMIN %}
+        <a href="{{ url_for('users_list') }}" class="{{ 'active' if request.endpoint in ['users_list', 'user_form'] else '' }}">Users</a>
+        {% endif %}
+      </nav>
+      <div class="sidebar-user">
+        <div class="sidebar-user-name">{{ current_full_name or session.get('username') }}</div>
+        <div class="sidebar-user-role">{{ current_role }}</div>
+      </div>
+      <form method="post" action="{{ url_for('logout') }}" style="margin-top:10px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.12);">
+        <button type="submit" class="button-link secondary" style="width:100%;">Sign out</button>
+      </form>
+    </aside>
+
+    <main class="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Ticket #{{ concern['id'] }}</p>
+    <h2>{{ concern['concern_type'] }}</h2>
+    <p class="subtle">TRN / Reference No.: {{ concern['trn_or_ref_no'] }}</p>
+  </div>
+  <a class="button-link secondary" href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+  {% if current_role == ROLE_ADMIN or current_role == ROLE_ISA or concern['reported_by_user_id'] == session.get('user_id') %}
+  <a class="button-link secondary" href="{{ url_for('nid_concern_edit', concern_id=concern['id']) }}">Edit Ticket</a>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>Status</h3>
+    <p>{{ concern['status'] }} &middot; last known progress</p>
+  </div>
+  <div class="progress-track large" title="{{ concern['status'] }}">
+    <div class="progress-fill" style="width: {{ progress }}%;"></div>
+  </div>
+  <div class="progress-steps">
+    {% for status in nid_concern_statuses %}
+    <span class="progress-step {{ 'reached' if nid_concern_statuses.index(status) <= nid_concern_statuses.index(concern['status']) else '' }}">{{ status }}</span>
+    {% endfor %}
+  </div>
+
+  {% if can_manage %}
+  <form method="post" action="{{ url_for('nid_concern_update_status', concern_id=concern['id']) }}" class="inline-status-form" style="margin-top:16px;">
+    <input type="hidden" name="next" value="{{ url_for('nid_concern_detail', concern_id=concern['id']) }}">
+    <label>Update status
+      <select name="status" onchange="this.form.submit()">
+        {% for status in nid_concern_statuses %}
+        <option value="{{ status }}" {% if concern['status'] == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+  {% endif %}
+
+  <div class="panel-subhead">
+    <h4>Details</h4>
+  </div>
+  <dl class="detail-list">
+    <dt>Date Reported</dt><dd>{{ concern['date_reported'] }}</dd>
+    <dt>Reported By</dt><dd>{{ concern['reported_by'] }}</dd>
+    <dt>Description</dt><dd>{{ concern['description'] or '—' }}</dd>
+  </dl>
+</section>
+
+<section class="panel chat-panel">
+  <div class="panel-head">
+    <h3>Ticket Thread</h3>
+    <p>Messages between the reporting user and the Information Systems Analyst handling this ticket.</p>
+  </div>
+
+  <div class="chat-thread">
+    {% for m in messages %}
+    <div class="chat-bubble {{ 'mine' if m['sender_id'] == session.get('user_id') else '' }}">
+      <div class="chat-meta">
+        <strong>{{ m['sender_name'] }}</strong>
+        <span class="chat-role">{{ m['sender_role'] }}</span>
+        <span class="chat-time">{{ m['created_at'] }}</span>
+      </div>
+      <div class="chat-body">{{ m['body'] }}</div>
+    </div>
+    {% else %}
+    <p class="subtle">No messages yet. Say hello to get this ticket moving.</p>
+    {% endfor %}
+  </div>
+
+  <form method="post" class="chat-compose">
+    <textarea name="body" rows="2" placeholder="Write a message about this ticket..." required></textarea>
+    <button type="submit">Send</button>
+  </form>
+</section>
+{% endblock %}

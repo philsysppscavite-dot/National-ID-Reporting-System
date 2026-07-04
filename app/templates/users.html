@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Users</p>
+    <h2>Accounts and Roles</h2>
+    <p class="subtle">Create logins for staff so tickets and messages are tied to a real person.</p>
+  </div>
+  <a class="button-link" href="{{ url_for('user_form') }}">Add User</a>
+</section>
+
+<section class="panel">
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Full Name</th>
+          <th>Username</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>{{ user['full_name'] }}</td>
+          <td>{{ user['username'] }}</td>
+          <td>{{ user['role'] }}</td>
+          <td>
+            <span class="status-pill {{ 'approved' if user['active'] else 'pending' }}">{{ 'Active' if user['active'] else 'Disabled' }}</span>
+          </td>
+          <td>
+            <a class="button-link secondary" href="{{ url_for('user_form', user_id=user['id']) }}">Edit</a>
+            <form method="post" action="{{ url_for('user_delete', user_id=user['id']) }}" onsubmit="return confirm('Remove this user?');" style="display:inline;">
+              <button type="submit" class="link-button danger">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">No users yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
