@@ -163,7 +163,11 @@ def register_routes(app):
             ticket_date_from = (request.args.get("ticket_date_from") or "").strip()
             ticket_date_to = (request.args.get("ticket_date_to") or "").strip()
             ticket_type = (request.args.get("ticket_type") or "").strip()
-            ticket_filters_active = bool(ticket_date_from or ticket_date_to or ticket_type)
+            ticket_status = (request.args.get("ticket_status") or "").strip()
+            ticket_search = (request.args.get("ticket_search") or "").strip()
+            ticket_filters_active = bool(
+                ticket_date_from or ticket_date_to or ticket_type or ticket_status or ticket_search
+            )
 
             concern_filters: dict = {}
             if ticket_date_from:
@@ -176,7 +180,33 @@ def register_routes(app):
             all_concerns = list_nid_concerns(concern_filters)
             if current_role() not in (ROLE_ADMIN, ROLE_ISA):
                 all_concerns = [c for c in all_concerns if c["reported_by_user_id"] == current_user_id()]
-            recent_nid_concerns = all_concerns if ticket_filters_active else all_concerns[:8]
+
+            if ticket_status:
+                all_concerns = [c for c in all_concerns if c["status"] == ticket_status]
+
+            if ticket_search:
+                needle = ticket_search.lower()
+                def _matches(c):
+                    haystack = " ".join(
+                        str(c.get(field) or "")
+                        for field in ("trn_or_ref_no", "description", "reported_by", "concern_type", "status")
+                    ).lower()
+                    return needle in haystack
+                all_concerns = [c for c in all_concerns if _matches(c)]
+
+            # Pagination -- every ticket is reachable, just paged instead of
+            # silently truncated to a "recent 8".
+            TICKETS_PER_PAGE = 10
+            total_tickets = len(all_concerns)
+            total_pages = max(1, -(-total_tickets // TICKETS_PER_PAGE))  # ceil div
+            try:
+                ticket_page = int(request.args.get("ticket_page", 1))
+            except ValueError:
+                ticket_page = 1
+            ticket_page = min(max(ticket_page, 1), total_pages)
+            page_start = (ticket_page - 1) * TICKETS_PER_PAGE
+            page_end = page_start + TICKETS_PER_PAGE
+            recent_nid_concerns = all_concerns[page_start:page_end]
 
             return render_template(
                 "dashboard.html",
@@ -196,7 +226,14 @@ def register_routes(app):
                 ticket_date_from=ticket_date_from,
                 ticket_date_to=ticket_date_to,
                 ticket_type=ticket_type,
+                ticket_status=ticket_status,
+                ticket_search=ticket_search,
                 ticket_filters_active=ticket_filters_active,
+                ticket_page=ticket_page,
+                total_pages=total_pages,
+                total_tickets=total_tickets,
+                ticket_page_start=(page_start + 1) if total_tickets else 0,
+                ticket_page_end=min(page_end, total_tickets),
             )
         except Exception as e:
             from flask import jsonify

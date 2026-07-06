@@ -58,5 +58,24 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  <script>
+    (function () {
+      function titleCase(str) {
+        return str.replace(/[^\s\-']+/g, function (word) {
+          return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        });
+      }
+      document.addEventListener(
+        "blur",
+        function (e) {
+          var el = e.target;
+          if (el && el.matches && el.matches("[data-title-case]") && el.value) {
+            el.value = titleCase(el.value);
+          }
+        },
+        true
+      );
+    })();
+  </script>
 </body>
 </html>

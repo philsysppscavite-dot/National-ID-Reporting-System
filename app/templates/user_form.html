@@ -15,7 +15,7 @@
       <input type="text" name="username" value="{{ user['username'] if user else '' }}" {% if user %}disabled{% else %}required{% endif %}>
     </label>
     <label>Full Name
-      <input type="text" name="full_name" value="{{ user['full_name'] if user else '' }}" required>
+      <input type="text" name="full_name" value="{{ user['full_name'] if user else '' }}" required data-title-case>
     </label>
     <label>Role
       <select name="role">

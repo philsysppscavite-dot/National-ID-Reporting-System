@@ -28,6 +28,22 @@ def _upper_text(value: str | None) -> str:
     return (value or "").strip().upper()
 
 
+def _title_text(value: str | None) -> str:
+    """Best-effort Title Case for names and free-text concern fields --
+    capitalizes the first letter of each word (including after hyphens
+    and apostrophes, e.g. "mary-jane o'brien" -> "Mary-Jane O'Brien"),
+    lowercases the rest, and collapses stray whitespace."""
+    text = (value or "").strip()
+    if not text:
+        return ""
+
+    def cap_word(word: str) -> str:
+        parts = re.split(r"([-'])", word)
+        return "".join(p if p in ("-", "'") else (p[:1].upper() + p[1:].lower()) for p in parts)
+
+    return " ".join(cap_word(w) for w in text.split())
+
+
 def fetch_settings() -> dict[str, str]:
     rows = get_db().execute("SELECT key, value FROM app_settings").fetchall()
     return {row["key"]: row["value"] for row in rows}
@@ -1015,6 +1031,9 @@ NID_CONCERN_TYPES = [
     "Upload Packets",
     "Biometric Verification/ Authentication",
     "Demographic Verification/ Authentication",
+    "Biographic Verification/ Authentication",
+    "Verify Packet",
+    "Could Not Track",
 ]
 
 NID_CONCERN_STATUSES = ["Open", "In Progress", "Resolved", "Escalated"]
@@ -1088,7 +1107,7 @@ def create_nid_concern(form, reporter_user_id: int, reporter_full_name: str) -> 
             "city_municipality": "",
             "trn_or_ref_no": trn_or_ref_no,
             "concern_type": (form.get("concern_type") or NID_CONCERN_TYPES[0]).strip(),
-            "description": (form.get("description") or "").strip(),
+            "description": _title_text(form.get("description")),
             "status": "Open",
             "reported_by": reporter_full_name,
             "reported_by_user_id": reporter_user_id,
@@ -1124,7 +1143,7 @@ def update_nid_concern(concern_id: int, form) -> None:
             "date_reported": date_reported,
             "trn_or_ref_no": trn_or_ref_no,
             "concern_type": concern_type,
-            "description": (form.get("description") or "").strip(),
+            "description": _title_text(form.get("description")),
         },
     )
 
@@ -1202,7 +1221,7 @@ def get_user_by_username(username: str):
 
 def create_user(username: str, password: str, full_name: str, role: str) -> None:
     username = (username or "").strip()
-    full_name = (full_name or "").strip()
+    full_name = _title_text(full_name)
     if not username or not password or not full_name:
         raise ValueError("Username, password, and full name are required.")
     if role not in ROLES:
@@ -1225,7 +1244,7 @@ def update_user(user_id: int, full_name: str, role: str, active: bool, new_passw
     if role not in ROLES:
         raise ValueError("Unknown role.")
     values = {
-        "full_name": (full_name or "").strip(),
+        "full_name": _title_text(full_name),
         "role": role,
         "active": 1 if active else 0,
     }

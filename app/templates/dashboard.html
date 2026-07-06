@@ -104,20 +104,27 @@
       <input type="text" value="{{ current_full_name }}" disabled>
     </label>
     <label class="full-row">Description
-      <textarea name="description" rows="2" placeholder="Describe the concern..."></textarea>
+      <textarea name="description" rows="2" placeholder="Describe the concern..." data-title-case></textarea>
     </label>
     <div class="full-row">
       <button type="submit">Log Ticket</button>
     </div>
   </form>
 
-  {% if recent_nid_concerns or ticket_filters_active %}
-  <div class="panel-subhead">
+  <div class="panel-subhead ticket-subhead">
     <h4>Recent Tickets</h4>
+    {% if total_tickets %}
+    <span class="ticket-count-pill">{{ total_tickets }} total</span>
+    {% endif %}
   </div>
-  <form method="get" class="grid-form compact-grid" style="margin-bottom:12px;">
+
+  <form method="get" class="ticket-toolbar">
     <input type="hidden" name="start_date" value="{{ start_date }}">
     <input type="hidden" name="end_date" value="{{ end_date }}">
+    <div class="ticket-toolbar-search">
+      <input type="search" name="ticket_search" value="{{ ticket_search }}"
+             placeholder="Search TRN, description, reporter, type, or status...">
+    </div>
     <label>From
       <input type="date" name="ticket_date_from" value="{{ ticket_date_from }}">
     </label>
@@ -132,21 +139,38 @@
         {% endfor %}
       </select>
     </label>
-    <div style="display:flex; align-items:flex-end; gap:8px;">
-      <button type="submit">Filter</button>
+    <label>Status
+      <select name="ticket_status">
+        <option value="">All Statuses</option>
+        {% for status in nid_concern_statuses %}
+        <option value="{{ status }}" {% if ticket_status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="ticket-toolbar-actions">
+      <button type="submit">Search / Filter</button>
       {% if ticket_filters_active %}
       <a class="button-link secondary" href="{{ url_for('dashboard', start_date=start_date, end_date=end_date) }}">Clear</a>
       {% endif %}
     </div>
   </form>
+
+  {% if total_tickets %}
+  <p class="ticket-range-summary">
+    Showing <strong>{{ ticket_page_start }}–{{ ticket_page_end }}</strong> of <strong>{{ total_tickets }}</strong> tickets
+  </p>
+  {% endif %}
+
   <div class="table-scroll">
-    <table>
+    <table class="ticket-table">
       <thead>
         <tr>
+          <th>#</th>
           <th>Date</th>
           <th>TRN / Ref No.</th>
           <th>Type</th>
           <th>Description</th>
+          <th>Status</th>
           <th>Progress</th>
           <th>Reported By</th>
           <th></th>
@@ -155,18 +179,21 @@
       <tbody>
         {% for concern in recent_nid_concerns %}
         <tr>
+          <td class="num subtle">{{ concern['id'] }}</td>
           <td>{{ concern['date_reported'] }}</td>
           <td><a href="{{ url_for('nid_concern_detail', concern_id=concern['id']) }}">{{ concern['trn_or_ref_no'] }}</a></td>
           <td>{{ concern['concern_type'] }}</td>
-          <td>{{ concern['description'] }}</td>
+          <td class="ticket-description">{{ concern['description'] }}</td>
+          <td>
+            <span class="status-badge status-{{ concern['status'] | lower | replace(' ', '-') }}">{{ concern['status'] }}</span>
+          </td>
           <td>
             <div class="progress-track" title="{{ concern['status'] }}">
               <div class="progress-fill" style="width: {{ nid_concern_progress_map.get(concern['status'], 0) }}%;"></div>
             </div>
-            <span class="progress-label">{{ concern['status'] }}</span>
           </td>
           <td>{{ concern['reported_by'] }}</td>
-          <td>
+          <td class="ticket-actions">
             <a class="button-link secondary" href="{{ url_for('nid_concern_detail', concern_id=concern['id']) }}">Open</a>
             {% if current_role == ROLE_ADMIN or current_role == ROLE_ISA or concern['reported_by_user_id'] == session.get('user_id') %}
             <a class="button-link secondary" href="{{ url_for('nid_concern_edit', concern_id=concern['id']) }}">Edit</a>
@@ -179,11 +206,21 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7">No tickets match this filter.</td></tr>
+        <tr><td colspan="9">No tickets match this filter.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+
+  {% if total_pages > 1 %}
+  <nav class="pagination">
+    {% set base_args = {'start_date': start_date, 'end_date': end_date, 'ticket_date_from': ticket_date_from, 'ticket_date_to': ticket_date_to, 'ticket_type': ticket_type, 'ticket_status': ticket_status, 'ticket_search': ticket_search} %}
+    <a class="pagination-link {{ 'disabled' if ticket_page <= 1 else '' }}"
+       href="{{ url_for('dashboard', ticket_page=ticket_page - 1, **base_args) if ticket_page > 1 else '#' }}">&larr; Prev</a>
+    <span class="pagination-status">Page {{ ticket_page }} of {{ total_pages }}</span>
+    <a class="pagination-link {{ 'disabled' if ticket_page >= total_pages else '' }}"
+       href="{{ url_for('dashboard', ticket_page=ticket_page + 1, **base_args) if ticket_page < total_pages else '#' }}">Next &rarr;</a>
+  </nav>
   {% endif %}
 </section>
 {% endblock %}
