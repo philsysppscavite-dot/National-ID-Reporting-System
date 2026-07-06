@@ -6,6 +6,7 @@ from typing import Iterable
 
 from werkzeug.security import generate_password_hash
 
+from . import sheets_db
 from .db import ROLE_ADMIN, ROLE_ISA, ROLE_USER, ROLES, get_db
 
 
@@ -1036,44 +1037,33 @@ def is_valid_trn_ref_no(value: str) -> bool:
 
 def list_nid_concerns(filters: dict | None = None) -> list:
     filters = filters or {}
-    db = get_db()
-    sql = "SELECT * FROM nid_concerns WHERE 1=1"
-    params: list = []
+    rows = sheets_db.get_all("NidConcerns")
     if filters.get("status"):
-        sql += " AND status = ?"
-        params.append(filters["status"])
+        rows = [r for r in rows if r.get("status") == filters["status"]]
     if filters.get("concern_type"):
-        sql += " AND concern_type = ?"
-        params.append(filters["concern_type"])
+        rows = [r for r in rows if r.get("concern_type") == filters["concern_type"]]
     if filters.get("city_municipality"):
-        sql += " AND city_municipality = ?"
-        params.append(filters["city_municipality"])
+        rows = [r for r in rows if r.get("city_municipality") == filters["city_municipality"]]
     if filters.get("start_date"):
-        sql += " AND date_reported >= ?"
-        params.append(filters["start_date"])
+        rows = [r for r in rows if (r.get("date_reported") or "") >= filters["start_date"]]
     if filters.get("end_date"):
-        sql += " AND date_reported <= ?"
-        params.append(filters["end_date"])
-    sql += " ORDER BY date_reported DESC, id DESC"
-    return db.execute(sql, params).fetchall()
+        rows = [r for r in rows if (r.get("date_reported") or "") <= filters["end_date"]]
+    rows.sort(key=lambda r: (r.get("date_reported") or "", r.get("id") or 0), reverse=True)
+    return rows
 
 
 def nid_concern_matrix_summary() -> list:
     """Rows/columns matrix: concern type x status, with counts -- powers the
     dashboard's NID Concern Matrix data table."""
-    db = get_db()
-    rows = db.execute(
-        "SELECT concern_type, status, COUNT(*) AS n FROM nid_concerns GROUP BY concern_type, status"
-    ).fetchall()
     matrix: dict[str, dict[str, int]] = {
         concern_type: {status: 0 for status in NID_CONCERN_STATUSES} for concern_type in NID_CONCERN_TYPES
     }
-    for row in rows:
-        concern_type = row["concern_type"] or "Other"
-        status = row["status"] or "Open"
-        matrix.setdefault(concern_type, {status: 0 for status in NID_CONCERN_STATUSES})
+    for row in sheets_db.get_all("NidConcerns"):
+        concern_type = row.get("concern_type") or "Other"
+        status = row.get("status") or "Open"
+        matrix.setdefault(concern_type, {s: 0 for s in NID_CONCERN_STATUSES})
         matrix[concern_type].setdefault(status, 0)
-        matrix[concern_type][status] += row["n"]
+        matrix[concern_type][status] += 1
     return [
         {"concern_type": concern_type, **counts, "total": sum(counts.values())}
         for concern_type, counts in matrix.items()
@@ -1081,35 +1071,30 @@ def nid_concern_matrix_summary() -> list:
 
 
 def get_nid_concern(concern_id: int):
-    return get_db().execute("SELECT * FROM nid_concerns WHERE id = ?", (concern_id,)).fetchone()
+    return sheets_db.get_by_id("NidConcerns", concern_id)
 
 
 def create_nid_concern(form, reporter_user_id: int, reporter_full_name: str) -> int:
     """Log a new ticket. `reported_by` is always taken from the logged-in
     user, never from free text, and the reference number must be exactly
     29 digits."""
-    db = get_db()
     trn_or_ref_no = (form.get("trn_or_ref_no") or "").strip()
     if not is_valid_trn_ref_no(trn_or_ref_no):
         raise ValueError("TRN / Reference No. must be exactly 29 digits.")
-    cursor = db.execute(
-        """
-        INSERT INTO nid_concerns
-            (date_reported, city_municipality, trn_or_ref_no, concern_type,
-             description, status, reported_by, reported_by_user_id, remarks)
-        VALUES (?, '', ?, ?, ?, 'Open', ?, ?, '')
-        """,
-        (
-            form.get("date_reported") or datetime.now().strftime("%Y-%m-%d"),
-            trn_or_ref_no,
-            (form.get("concern_type") or NID_CONCERN_TYPES[0]).strip(),
-            (form.get("description") or "").strip(),
-            reporter_full_name,
-            reporter_user_id,
-        ),
+    return sheets_db.insert(
+        "NidConcerns",
+        {
+            "date_reported": form.get("date_reported") or datetime.now().strftime("%Y-%m-%d"),
+            "city_municipality": "",
+            "trn_or_ref_no": trn_or_ref_no,
+            "concern_type": (form.get("concern_type") or NID_CONCERN_TYPES[0]).strip(),
+            "description": (form.get("description") or "").strip(),
+            "status": "Open",
+            "reported_by": reporter_full_name,
+            "reported_by_user_id": reporter_user_id,
+            "remarks": "",
+        },
     )
-    db.commit()
-    return cursor.lastrowid
 
 
 def update_nid_concern_status(concern_id: int, status: str) -> None:
@@ -1117,9 +1102,7 @@ def update_nid_concern_status(concern_id: int, status: str) -> None:
     this -- enforced at the view layer with roles_required."""
     if status not in NID_CONCERN_STATUSES:
         raise ValueError("Unknown status.")
-    db = get_db()
-    db.execute("UPDATE nid_concerns SET status = ? WHERE id = ?", (status, concern_id))
-    db.commit()
+    sheets_db.update("NidConcerns", concern_id, {"status": status})
 
 
 def update_nid_concern(concern_id: int, form) -> None:
@@ -1134,16 +1117,16 @@ def update_nid_concern(concern_id: int, form) -> None:
     date_reported = (form.get("date_reported") or "").strip()
     if not date_reported:
         raise ValueError("Date reported is required.")
-    db = get_db()
-    db.execute(
-        """
-        UPDATE nid_concerns
-        SET date_reported = ?, trn_or_ref_no = ?, concern_type = ?, description = ?
-        WHERE id = ?
-        """,
-        (date_reported, trn_or_ref_no, concern_type, (form.get("description") or "").strip(), concern_id),
+    sheets_db.update(
+        "NidConcerns",
+        concern_id,
+        {
+            "date_reported": date_reported,
+            "trn_or_ref_no": trn_or_ref_no,
+            "concern_type": concern_type,
+            "description": (form.get("description") or "").strip(),
+        },
     )
-    db.commit()
 
 
 def nid_concern_progress(status: str) -> int:
@@ -1151,9 +1134,10 @@ def nid_concern_progress(status: str) -> int:
 
 
 def delete_nid_concern(concern_id: int) -> None:
-    db = get_db()
-    db.execute("DELETE FROM nid_concerns WHERE id = ?", (concern_id,))
-    db.commit()
+    sheets_db.delete("NidConcerns", concern_id)
+    # No FK cascade in a spreadsheet -- clean up the ticket's thread by hand.
+    for message in sheets_db.find("ConcernMessages", concern_id=concern_id):
+        sheets_db.delete("ConcernMessages", message["id"])
 
 
 # ---------------------------------------------------------------------------
@@ -1161,34 +1145,27 @@ def delete_nid_concern(concern_id: int) -> None:
 # ---------------------------------------------------------------------------
 
 def list_concern_messages(concern_id: int) -> list:
-    return get_db().execute(
-        """
-        SELECT concern_messages.*, users.full_name AS sender_name, users.role AS sender_role
-        FROM concern_messages
-        JOIN users ON users.id = concern_messages.sender_id
-        WHERE concern_id = ?
-        ORDER BY concern_messages.created_at ASC, concern_messages.id ASC
-        """,
-        (concern_id,),
-    ).fetchall()
+    rows = sheets_db.find("ConcernMessages", concern_id=concern_id)
+    users_by_id = {u["id"]: u for u in sheets_db.get_all("Users")}
+    for row in rows:
+        sender = users_by_id.get(row.get("sender_id"))
+        row["sender_name"] = sender["full_name"] if sender else "Unknown"
+        row["sender_role"] = sender["role"] if sender else ""
+    rows.sort(key=lambda r: (r.get("created_at") or "", r.get("id") or 0))
+    return rows
 
 
 def add_concern_message(concern_id: int, sender_id: int, body: str) -> None:
     body = (body or "").strip()
     if not body:
         return
-    db = get_db()
-    db.execute(
-        "INSERT INTO concern_messages (concern_id, sender_id, body) VALUES (?, ?, ?)",
-        (concern_id, sender_id, body),
-    )
-    db.commit()
+    sheets_db.insert("ConcernMessages", {"concern_id": concern_id, "sender_id": sender_id, "body": body})
 
 
 def user_can_view_concern(concern, user_id: int, role: str) -> bool:
     if role in (ROLE_ADMIN, ROLE_ISA):
         return True
-    return concern is not None and concern["reported_by_user_id"] == user_id
+    return concern is not None and concern.get("reported_by_user_id") == user_id
 
 
 # ---------------------------------------------------------------------------
@@ -1196,25 +1173,31 @@ def user_can_view_concern(concern, user_id: int, role: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def list_users() -> list:
-    return get_db().execute(
-        "SELECT id, username, full_name, role, active, created_at FROM users ORDER BY full_name COLLATE NOCASE"
-    ).fetchall()
+    rows = sheets_db.get_all("Users")
+    rows.sort(key=lambda r: (r.get("full_name") or "").lower())
+    return rows
 
 
 def list_active_users(exclude_user_id: int | None = None) -> list:
-    db = get_db()
+    rows = [r for r in sheets_db.get_all("Users") if r.get("active")]
     if exclude_user_id is not None:
-        return db.execute(
-            "SELECT id, username, full_name, role FROM users WHERE active = 1 AND id != ? ORDER BY full_name COLLATE NOCASE",
-            (exclude_user_id,),
-        ).fetchall()
-    return db.execute(
-        "SELECT id, username, full_name, role FROM users WHERE active = 1 ORDER BY full_name COLLATE NOCASE"
-    ).fetchall()
+        rows = [r for r in rows if r.get("id") != int(exclude_user_id)]
+    rows.sort(key=lambda r: (r.get("full_name") or "").lower())
+    return rows
 
 
 def get_user(user_id: int):
-    return get_db().execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return sheets_db.get_by_id("Users", user_id)
+
+
+def get_user_by_username(username: str):
+    username = (username or "").strip().lower()
+    if not username:
+        return None
+    for row in sheets_db.get_all("Users"):
+        if (row.get("username") or "").strip().lower() == username:
+            return row
+    return None
 
 
 def create_user(username: str, password: str, full_name: str, role: str) -> None:
@@ -1224,35 +1207,31 @@ def create_user(username: str, password: str, full_name: str, role: str) -> None
         raise ValueError("Username, password, and full name are required.")
     if role not in ROLES:
         raise ValueError("Unknown role.")
-    db = get_db()
-    db.execute(
-        "INSERT INTO users (username, password_hash, full_name, role, active) VALUES (?, ?, ?, ?, 1)",
-        (username, generate_password_hash(password), full_name, role),
+    if get_user_by_username(username):
+        raise ValueError("A user with that username already exists.")
+    sheets_db.insert(
+        "Users",
+        {
+            "username": username,
+            "password_hash": generate_password_hash(password),
+            "full_name": full_name,
+            "role": role,
+            "active": 1,
+        },
     )
-    db.commit()
 
 
 def update_user(user_id: int, full_name: str, role: str, active: bool, new_password: str | None = None) -> None:
     if role not in ROLES:
         raise ValueError("Unknown role.")
-    db = get_db()
+    values = {
+        "full_name": (full_name or "").strip(),
+        "role": role,
+        "active": 1 if active else 0,
+    }
     if new_password:
-        db.execute(
-            "UPDATE users SET full_name=?, role=?, active=?, password_hash=? WHERE id=?",
-            ((full_name or "").strip(), role, 1 if active else 0, generate_password_hash(new_password), user_id),
-        )
-    else:
-        db.execute(
-            "UPDATE users SET full_name=?, role=?, active=? WHERE id=?",
-            ((full_name or "").strip(), role, 1 if active else 0, user_id),
-        )
-    db.commit()
-
-
-def delete_user(user_id: int) -> None:
-    db = get_db()
-    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    db.commit()
+        values["password_hash"] = generate_password_hash(new_password)
+    sheets_db.update("Users", user_id, values)
 
 
 # ---------------------------------------------------------------------------
@@ -1269,18 +1248,31 @@ def _purge_expired_direct_messages() -> None:
     db.commit()
 
 
+# Public alias so a background scheduler (see app/scheduler.py) can trigger
+# the purge on a timer, instead of only ever purging lazily whenever someone
+# happens to open/poll the Messages page. Same function either way.
+purge_expired_direct_messages = _purge_expired_direct_messages
+
+
 def list_conversation(user_a_id: int, user_b_id: int) -> list:
     _purge_expired_direct_messages()
-    return get_db().execute(
+    rows = get_db().execute(
         """
-        SELECT direct_messages.*, users.full_name AS sender_name
+        SELECT *
         FROM direct_messages
-        JOIN users ON users.id = direct_messages.sender_id
         WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
         ORDER BY created_at ASC, id ASC
         """,
         (user_a_id, user_b_id, user_b_id, user_a_id),
     ).fetchall()
+    users_by_id = {u["id"]: u for u in sheets_db.get_all("Users")}
+    result = []
+    for row in rows:
+        item = dict(row)
+        sender = users_by_id.get(item["sender_id"])
+        item["sender_name"] = sender["full_name"] if sender else "Unknown"
+        result.append(item)
+    return result
 
 
 def send_direct_message(sender_id: int, recipient_id: int, body: str) -> None:

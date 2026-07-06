@@ -6,6 +6,8 @@ from flask import Flask
 
 from .auth import register_auth
 from .db import init_app as init_db_app
+from .scheduler import start_direct_message_purge_job
+from .sheets_db import init_sheets
 from .views import register_routes
 
 
@@ -44,6 +46,8 @@ def create_app() -> Flask:
     Path(app.config["UPLOAD_DIR"]).mkdir(parents=True, exist_ok=True)
 
     init_db_app(app)
+    init_sheets()
     register_routes(app)
     register_auth(app)
+    start_direct_message_purge_job(app)
     return app

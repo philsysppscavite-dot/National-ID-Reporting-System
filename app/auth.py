@@ -13,9 +13,10 @@ from __future__ import annotations
 from functools import wraps
 
 from flask import abort, flash, redirect, render_template, request, session, url_for
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import check_password_hash
 
-from .db import ALLOWED_REGISTRATION_EMAILS, ROLE_ADMIN, ROLE_ISA, ROLE_USER, get_db
+from .db import ALLOWED_REGISTRATION_EMAILS, ROLE_ADMIN, ROLE_ISA, ROLE_USER
+from .repository import create_user, get_user_by_username
 
 PUBLIC_ENDPOINTS = {"login", "register", "static", "logo_file"}
 
@@ -75,10 +76,7 @@ def register_auth(app) -> None:
         if request.method == "POST":
             username = (request.form.get("username") or "").strip()
             password = request.form.get("password") or ""
-            db = get_db()
-            user = db.execute(
-                "SELECT * FROM users WHERE username = ? COLLATE NOCASE", (username,)
-            ).fetchone()
+            user = get_user_by_username(username)
             if user and user["active"] and check_password_hash(user["password_hash"], password):
                 session.clear()
                 session["logged_in"] = True
@@ -107,10 +105,7 @@ def register_auth(app) -> None:
                     "Please contact the administrator."
                 )
             else:
-                db = get_db()
-                existing = db.execute(
-                    "SELECT id FROM users WHERE username = ? COLLATE NOCASE", (username,)
-                ).fetchone()
+                existing = get_user_by_username(username)
                 if existing:
                     error = (
                         "An account for this email already exists. "
@@ -123,16 +118,13 @@ def register_auth(app) -> None:
                 elif password != confirm_password:
                     error = "Passwords do not match."
                 else:
-                    db.execute(
-                        """
-                        INSERT INTO users (username, password_hash, full_name, role, active)
-                        VALUES (?, ?, ?, ?, 1)
-                        """,
-                        (username, generate_password_hash(password), full_name, ROLE_USER),
-                    )
-                    db.commit()
-                    flash("Account created. You can now sign in.", "success")
-                    return redirect(url_for("login"))
+                    try:
+                        create_user(username=username, password=password, full_name=full_name, role=ROLE_USER)
+                    except ValueError as exc:
+                        error = str(exc)
+                    else:
+                        flash("Account created. You can now sign in.", "success")
+                        return redirect(url_for("login"))
         return render_template("register.html", error=error, form=request.form)
 
     @app.post("/logout")

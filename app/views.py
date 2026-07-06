@@ -21,7 +21,6 @@ from .repository import (
     create_nid_concern,
     create_user,
     delete_schedule,
-    delete_user,
     output_summary_grand_totals,
     delete_employee,
     delete_output,
@@ -933,15 +932,10 @@ def register_routes(app):
                 flash(f"Could not save user: {exc}", "error")
         return render_template("user_form.html", user=user, roles=ROLES)
 
-    @app.post("/users/<int:user_id>/delete")
-    @roles_required(ROLE_ADMIN)
-    def user_delete(user_id):
-        if user_id == current_user_id():
-            flash("You can't delete your own account while logged in.", "error")
-        else:
-            delete_user(user_id)
-            flash("User removed.", "success")
-        return redirect(url_for("users_list"))
+    # Note: user accounts are never deleted once registered. To remove
+    # someone's access, edit their account and uncheck "Active" instead --
+    # this keeps their history (messages, reported concerns, outputs, etc.)
+    # intact while disabling their login.
 
     # -----------------------------------------------------------------
     # 1-on-1 messenger -- messages auto-delete 10 hours after being sent

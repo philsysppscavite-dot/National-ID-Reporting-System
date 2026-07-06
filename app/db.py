@@ -3,7 +3,6 @@ import sqlite3
 from pathlib import Path
 
 from flask import current_app, g
-from werkzeug.security import generate_password_hash
 
 # Roles available in the system.
 ROLE_ADMIN = "Administrator"
@@ -139,56 +138,12 @@ ON schedules (schedule_date);
 CREATE INDEX IF NOT EXISTS idx_schedule_assignments_date_role
 ON schedule_assignments (schedule_id, role);
 
-CREATE TABLE IF NOT EXISTS nid_concerns (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date_reported TEXT NOT NULL,
-    city_municipality TEXT,
-    trn_or_ref_no TEXT,
-    concern_type TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'Open',
-    reported_by TEXT,
-    remarks TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_nid_concerns_date
-ON nid_concerns (date_reported);
-
-CREATE INDEX IF NOT EXISTS idx_nid_concerns_status
-ON nid_concerns (status);
-
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    full_name TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'User',
-    active INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS concern_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    concern_id INTEGER NOT NULL,
-    sender_id INTEGER NOT NULL,
-    body TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (concern_id) REFERENCES nid_concerns (id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_concern_messages_concern
-ON concern_messages (concern_id, created_at);
-
 CREATE TABLE IF NOT EXISTS direct_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sender_id INTEGER NOT NULL,
     recipient_id INTEGER NOT NULL,
     body TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE CASCADE,
-    FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE CASCADE
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_direct_messages_pair
@@ -248,27 +203,7 @@ def init_db() -> None:
         ON schedule_assignments (schedule_id, employee_id, role)
         """
     )
-    _ensure_column(db, "nid_concerns", "reported_by_user_id", "INTEGER")
-    _seed_default_admin(db)
     db.commit()
-
-
-def _seed_default_admin(db: sqlite3.Connection) -> None:
-    """Create a starter Administrator account from APP_USERNAME/APP_PASSWORD
-    (or the old admin/changeme defaults) so the app is usable on first boot
-    now that login is per-user instead of a single shared password."""
-    existing = db.execute("SELECT COUNT(*) AS n FROM users").fetchone()
-    if existing["n"]:
-        return
-    username = os.environ.get("APP_USERNAME", "admin")
-    password = os.environ.get("APP_PASSWORD", "changeme")
-    db.execute(
-        """
-        INSERT INTO users (username, password_hash, full_name, role, active)
-        VALUES (?, ?, ?, ?, 1)
-        """,
-        (username, generate_password_hash(password), "Administrator", ROLE_ADMIN),
-    )
 
 
 def _ensure_column(db: sqlite3.Connection, table: str, column: str, definition: str) -> None:

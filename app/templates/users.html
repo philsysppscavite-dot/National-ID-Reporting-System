@@ -33,9 +33,6 @@
           </td>
           <td>
             <a class="button-link secondary" href="{{ url_for('user_form', user_id=user['id']) }}">Edit</a>
-            <form method="post" action="{{ url_for('user_delete', user_id=user['id']) }}" onsubmit="return confirm('Remove this user?');" style="display:inline;">
-              <button type="submit" class="link-button danger">Remove</button>
-            </form>
           </td>
         </tr>
         {% else %}
