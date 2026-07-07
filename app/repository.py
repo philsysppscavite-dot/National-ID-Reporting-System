@@ -1034,6 +1034,7 @@ NID_CONCERN_TYPES = [
     "Biographic Verification/ Authentication",
     "Verify Packet",
     "Could Not Track",
+    "EPhilID Password Request, No QR /Photo",
 ]
 
 def nid_concern_monthly_matrix(month: str) -> list:
