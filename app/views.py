@@ -44,13 +44,17 @@ from .repository import (
     list_import_sources,
     list_nid_concerns,
     list_outputs,
+    list_pending_client_notifications,
     list_schedule_employees,
     list_schedules,
     list_signatories,
     list_users,
+    mark_concern_client_informed,
     monthly_city_records,
     NID_CONCERN_STATUS_PROGRESS,
     nid_concern_matrix_summary,
+    nid_concern_monthly_matrix,
+    nid_concern_monthly_trend,
     nid_concern_progress,
     output_per_person_rows,
     save_employee,
@@ -116,8 +120,10 @@ def register_routes(app):
     def inject_settings():
         current_uid = session.get("user_id")
         unread_total = 0
+        pending_client_notifications_total = 0
         if current_uid:
             unread_total = sum(unread_dm_counts_by_sender(current_uid).values())
+            pending_client_notifications_total = len(list_pending_client_notifications(current_uid))
         return {
             "app_settings": fetch_settings(),
             "city_municipalities": CITY_MUNICIPALITIES,
@@ -126,6 +132,7 @@ def register_routes(app):
             "current_role": session.get("role"),
             "current_full_name": session.get("full_name"),
             "unread_dm_total": unread_total,
+            "pending_client_notifications_total": pending_client_notifications_total,
         }
 
     @app.get("/logo/<path:filename>")
@@ -223,6 +230,7 @@ def register_routes(app):
                 nid_concern_types=NID_CONCERN_TYPES,
                 nid_concern_progress_map=NID_CONCERN_STATUS_PROGRESS,
                 recent_nid_concerns=recent_nid_concerns,
+                pending_client_notifications=list_pending_client_notifications(current_user_id()),
                 ticket_date_from=ticket_date_from,
                 ticket_date_to=ticket_date_to,
                 ticket_type=ticket_type,
@@ -252,6 +260,21 @@ def register_routes(app):
         except ValueError as exc:
             flash(str(exc), "error")
             return redirect(url_for("dashboard"))
+
+    @app.post("/nid-concerns/<int:concern_id>/inform-client")
+    def nid_concern_inform_client(concern_id):
+        concern = get_nid_concern(concern_id)
+        if not concern:
+            abort(404)
+        if not user_can_view_concern(concern, current_user_id(), current_role()):
+            abort(403)
+        if concern["status"] != "Resolved":
+            flash("This ticket isn't marked Resolved yet.", "error")
+        else:
+            mark_concern_client_informed(concern_id)
+            flash("Thanks -- marked as informed.", "success")
+        next_url = request.form.get("next") or url_for("dashboard")
+        return redirect(next_url)
 
     @app.route("/nid-concerns/<int:concern_id>/edit", methods=["GET", "POST"])
     def nid_concern_edit(concern_id):
@@ -313,6 +336,92 @@ def register_routes(app):
             nid_concern_statuses=NID_CONCERN_STATUSES,
             progress=nid_concern_progress(concern["status"]),
             can_manage=current_role() in (ROLE_ADMIN, ROLE_ISA),
+        )
+
+    @app.route("/nid-concerns/report")
+    def nid_concern_report():
+        month = (request.args.get("month") or datetime.now().strftime("%Y-%m")).strip()
+        try:
+            trend_months = int(request.args.get("trend_months", 6))
+        except ValueError:
+            trend_months = 6
+        trend_months = min(max(trend_months, 3), 24)
+
+        monthly_matrix = nid_concern_monthly_matrix(month)
+        trend = nid_concern_monthly_trend(months=trend_months, end_month=month)
+        current_month_stats = next((row for row in trend if row["month"] == month), None)
+
+        return render_template(
+            "nid_concern_report.html",
+            month=month,
+            monthly_matrix=monthly_matrix,
+            nid_concern_statuses=NID_CONCERN_STATUSES,
+            trend=trend,
+            trend_months=trend_months,
+            current_month_stats=current_month_stats,
+        )
+
+    @app.get("/nid-concerns/report/download")
+    def download_nid_concern_report():
+        month = (request.args.get("month") or datetime.now().strftime("%Y-%m")).strip()
+        try:
+            trend_months = int(request.args.get("trend_months", 6))
+        except ValueError:
+            trend_months = 6
+        trend_months = min(max(trend_months, 3), 24)
+
+        monthly_matrix = nid_concern_monthly_matrix(month)
+        trend = nid_concern_monthly_trend(months=trend_months, end_month=month)
+
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+
+        wb = Workbook()
+
+        # Sheet 1: this month's concern-type x status matrix
+        ws1 = wb.active
+        ws1.title = f"{month} Matrix"[:31]
+        headers = ["Concern Type"] + NID_CONCERN_STATUSES + ["Total"]
+        for col_idx, header in enumerate(headers, 1):
+            cell = ws1.cell(row=1, column=col_idx, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+        for row_idx, row in enumerate(monthly_matrix, 2):
+            ws1.cell(row=row_idx, column=1, value=row["concern_type"])
+            for col_idx, status in enumerate(NID_CONCERN_STATUSES, 2):
+                ws1.cell(row=row_idx, column=col_idx, value=row.get(status, 0))
+            ws1.cell(row=row_idx, column=len(NID_CONCERN_STATUSES) + 2, value=row["total"])
+        ws1.column_dimensions["A"].width = 34
+        for col_idx in range(2, len(NID_CONCERN_STATUSES) + 3):
+            ws1.column_dimensions[chr(64 + col_idx)].width = 14
+
+        # Sheet 2: trend across months
+        ws2 = wb.create_sheet(title="Monthly Trend")
+        trend_headers = ["Month"] + NID_CONCERN_STATUSES + ["Total", "Resolution Rate (%)"]
+        for col_idx, header in enumerate(trend_headers, 1):
+            cell = ws2.cell(row=1, column=col_idx, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+        for row_idx, row in enumerate(trend, 2):
+            ws2.cell(row=row_idx, column=1, value=row["month"])
+            for col_idx, status in enumerate(NID_CONCERN_STATUSES, 2):
+                ws2.cell(row=row_idx, column=col_idx, value=row.get(status, 0))
+            ws2.cell(row=row_idx, column=len(NID_CONCERN_STATUSES) + 2, value=row["total"])
+            ws2.cell(row=row_idx, column=len(NID_CONCERN_STATUSES) + 3, value=row["resolution_rate"])
+        ws2.column_dimensions["A"].width = 14
+        for col_idx in range(2, len(NID_CONCERN_STATUSES) + 4):
+            ws2.column_dimensions[chr(64 + col_idx)].width = 16
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        filename = f"nid_concerns_report_{month}.xlsx"
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=filename,
         )
 
     @app.route("/employees")

@@ -46,8 +46,25 @@
   <dl class="detail-list">
     <dt>Date Reported</dt><dd>{{ concern['date_reported'] }}</dd>
     <dt>Reported By</dt><dd>{{ concern['reported_by'] }}</dd>
+    <dt>Client Mobile Number</dt><dd>{{ concern['mobile_number'] or '—' }}</dd>
     <dt>Description</dt><dd>{{ concern['description'] or '—' }}</dd>
   </dl>
+
+  {% if concern['status'] == 'Resolved' and not concern['client_informed'] and (concern['reported_by_user_id'] == session.get('user_id') or can_manage) %}
+  <div class="panel-subhead"></div>
+  <div class="notify-panel" style="padding:16px; border-radius: var(--radius-md);">
+    <p style="margin:0 0 10px; color: var(--warning-700); font-weight:600;">
+      This ticket is Resolved. Please contact the client at {{ concern['mobile_number'] or 'the number on file' }} and confirm below once they've been informed.
+    </p>
+    <form method="post" action="{{ url_for('nid_concern_inform_client', concern_id=concern['id']) }}">
+      <input type="hidden" name="next" value="{{ url_for('nid_concern_detail', concern_id=concern['id']) }}">
+      <button type="submit">I've Informed the Client</button>
+    </form>
+  </div>
+  {% elif concern['status'] == 'Resolved' and concern['client_informed'] %}
+  <div class="panel-subhead"></div>
+  <p class="subtle">✓ Client has been informed that this ticket is resolved.</p>
+  {% endif %}
 </section>
 
 <section class="panel chat-panel">

@@ -1285,6 +1285,20 @@ td.num.flag {
   font-weight: 600;
 }
 
+.current-month-row td {
+  background: var(--gold-050);
+  font-weight: 600;
+}
+
+.notify-panel {
+  border-left: 4px solid var(--warning-500);
+  background: var(--warning-50);
+}
+
+.notify-panel .panel-head p {
+  color: var(--warning-700);
+}
+
 .progress-steps {
   display: flex;
   flex-wrap: wrap;

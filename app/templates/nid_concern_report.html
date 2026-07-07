@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">NID Concerns</p>
+    <h2>Statistical Summary &amp; Monthly Reporting</h2>
+  </div>
+  <div class="actions">
+    <a class="button-link secondary"
+       href="{{ url_for('download_nid_concern_report', month=month, trend_months=trend_months) }}">Download Excel</a>
+  </div>
+</section>
+
+<section class="panel">
+  <form method="get" class="filters">
+    <label>Month
+      <input type="month" name="month" value="{{ month }}">
+    </label>
+    <label>Trend window
+      <select name="trend_months">
+        {% for opt in [3, 6, 12, 24] %}
+        <option value="{{ opt }}" {% if trend_months == opt %}selected{% endif %}>Last {{ opt }} months</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Load Report</button>
+  </form>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card">
+    <span>Tickets Logged ({{ month }})</span>
+    <strong>{{ current_month_stats.total if current_month_stats else 0 }}</strong>
+  </article>
+  <article class="stat-card">
+    <span>Open</span>
+    <strong>{{ current_month_stats.get('Open', 0) if current_month_stats else 0 }}</strong>
+  </article>
+  <article class="stat-card">
+    <span>Resolved</span>
+    <strong>{{ current_month_stats.get('Resolved', 0) if current_month_stats else 0 }}</strong>
+  </article>
+  <article class="stat-card">
+    <span>Resolution Rate</span>
+    <strong>{{ current_month_stats.resolution_rate if current_month_stats else 0 }}%</strong>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>{{ month }} &mdash; Concern Type Breakdown</h3>
+    <p>Ticket counts by type and status for the selected month only.</p>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Concern Type</th>
+          {% for status in nid_concern_statuses %}
+          <th>{{ status }}</th>
+          {% endfor %}
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in monthly_matrix %}
+        {% if row.total > 0 %}
+        <tr>
+          <td>{{ row.concern_type }}</td>
+          {% for status in nid_concern_statuses %}
+          <td class="num {{ 'flag' if status == 'Open' and row.get(status, 0) > 0 else '' }}">{{ row.get(status, 0) }}</td>
+          {% endfor %}
+          <td class="num"><strong>{{ row.total }}</strong></td>
+        </tr>
+        {% endif %}
+        {% else %}
+        <tr><td colspan="{{ nid_concern_statuses|length + 2 }}">No tickets logged for this month.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if monthly_matrix and monthly_matrix | selectattr('total', 'gt', 0) | list | length == 0 %}
+  <p class="subtle" style="margin-top:10px;">No tickets logged for this month.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>Trend &mdash; Last {{ trend_months }} Months</h3>
+    <p>Month-over-month volume and resolution rate, ending {{ month }}.</p>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          {% for status in nid_concern_statuses %}
+          <th>{{ status }}</th>
+          {% endfor %}
+          <th>Total</th>
+          <th>Resolution Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in trend %}
+        <tr class="{{ 'current-month-row' if row.month == month else '' }}">
+          <td>{{ row.month }}</td>
+          {% for status in nid_concern_statuses %}
+          <td class="num">{{ row.get(status, 0) }}</td>
+          {% endfor %}
+          <td class="num"><strong>{{ row.total }}</strong></td>
+          <td class="num">
+            <span class="status-badge {{ 'status-resolved' if row.resolution_rate >= 75 else ('status-in-progress' if row.resolution_rate >= 40 else 'status-open') }}">
+              {{ row.resolution_rate }}%
+            </span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ nid_concern_statuses|length + 3 }}">No data available.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

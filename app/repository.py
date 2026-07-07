@@ -1036,6 +1036,60 @@ NID_CONCERN_TYPES = [
     "Could Not Track",
 ]
 
+def nid_concern_monthly_matrix(month: str) -> list:
+    """Concern-type x status breakdown for a single month (YYYY-MM) --
+    same shape as nid_concern_matrix_summary() but scoped to one month."""
+    rows = [r for r in sheets_db.get_all("NidConcerns") if (r.get("date_reported") or "").startswith(month)]
+    matrix: dict[str, dict[str, int]] = {
+        concern_type: {status: 0 for status in NID_CONCERN_STATUSES} for concern_type in NID_CONCERN_TYPES
+    }
+    for row in rows:
+        concern_type = row.get("concern_type") or "Other"
+        status = row.get("status") or "Open"
+        matrix.setdefault(concern_type, {s: 0 for s in NID_CONCERN_STATUSES})
+        matrix[concern_type].setdefault(status, 0)
+        matrix[concern_type][status] += 1
+    return [
+        {"concern_type": concern_type, **counts, "total": sum(counts.values())}
+        for concern_type, counts in matrix.items()
+    ]
+
+
+def nid_concern_monthly_trend(months: int = 6, end_month: str | None = None) -> list:
+    """Per-month statistics (counts by status, total, resolution rate) for
+    the `months` months ending with `end_month` (YYYY-MM, defaults to the
+    current month) -- oldest first, so it reads left-to-right as a trend."""
+    end_month = end_month or datetime.now().strftime("%Y-%m")
+    end_year, end_mon = (int(part) for part in end_month.split("-"))
+
+    month_keys = []
+    year, mon = end_year, end_mon
+    for _ in range(max(months, 1)):
+        month_keys.append(f"{year:04d}-{mon:02d}")
+        mon -= 1
+        if mon == 0:
+            mon = 12
+            year -= 1
+    month_keys.reverse()
+
+    counts_by_month = {mk: {status: 0 for status in NID_CONCERN_STATUSES} for mk in month_keys}
+    for row in sheets_db.get_all("NidConcerns"):
+        mk = (row.get("date_reported") or "")[:7]
+        if mk in counts_by_month:
+            status = row.get("status") or "Open"
+            counts_by_month[mk].setdefault(status, 0)
+            counts_by_month[mk][status] += 1
+
+    trend = []
+    for mk in month_keys:
+        counts = counts_by_month[mk]
+        total = sum(counts.values())
+        resolved = counts.get("Resolved", 0)
+        resolution_rate = round((resolved / total) * 100, 1) if total else 0.0
+        trend.append({"month": mk, **counts, "total": total, "resolution_rate": resolution_rate})
+    return trend
+
+
 NID_CONCERN_STATUSES = ["Open", "In Progress", "Resolved", "Escalated"]
 
 # Drives the progress bar shown on each ticket -- updated whenever an
@@ -1052,6 +1106,18 @@ TRN_REF_NO_PATTERN = re.compile(r"^\d{29}$")
 
 def is_valid_trn_ref_no(value: str) -> bool:
     return bool(TRN_REF_NO_PATTERN.match((value or "").strip()))
+
+
+def normalize_mobile_number(value: str) -> str | None:
+    """Normalize a Philippine mobile number to 09XXXXXXXXX (11 digits).
+    Accepts 09171234567, +639171234567, 639171234567, or with spaces/
+    dashes. Returns None if it doesn't resolve to a valid PH mobile number."""
+    digits = re.sub(r"\D", "", value or "")
+    if digits.startswith("63") and len(digits) == 12:
+        digits = "0" + digits[2:]
+    if re.fullmatch(r"09\d{9}", digits):
+        return digits
+    return None
 
 
 def list_nid_concerns(filters: dict | None = None) -> list:
@@ -1100,6 +1166,9 @@ def create_nid_concern(form, reporter_user_id: int, reporter_full_name: str) -> 
     trn_or_ref_no = (form.get("trn_or_ref_no") or "").strip()
     if not is_valid_trn_ref_no(trn_or_ref_no):
         raise ValueError("TRN / Reference No. must be exactly 29 digits.")
+    mobile_number = normalize_mobile_number(form.get("mobile_number"))
+    if not mobile_number:
+        raise ValueError("A valid mobile number is required (e.g. 09171234567).")
     return sheets_db.insert(
         "NidConcerns",
         {
@@ -1112,6 +1181,8 @@ def create_nid_concern(form, reporter_user_id: int, reporter_full_name: str) -> 
             "reported_by": reporter_full_name,
             "reported_by_user_id": reporter_user_id,
             "remarks": "",
+            "mobile_number": mobile_number,
+            "client_informed": 0,
         },
     )
 
@@ -1121,7 +1192,33 @@ def update_nid_concern_status(concern_id: int, status: str) -> None:
     this -- enforced at the view layer with roles_required."""
     if status not in NID_CONCERN_STATUSES:
         raise ValueError("Unknown status.")
-    sheets_db.update("NidConcerns", concern_id, {"status": status})
+    values = {"status": status}
+    if status == "Resolved":
+        # Fresh acknowledgment needed each time a ticket becomes Resolved --
+        # if it gets reopened and resolved again later, the reporting user
+        # is notified again too.
+        values["client_informed"] = 0
+    sheets_db.update("NidConcerns", concern_id, values)
+
+
+def mark_concern_client_informed(concern_id: int) -> None:
+    """Reporting user confirms they've told the client their concern was
+    resolved -- clears the notification/reminder for this ticket."""
+    sheets_db.update("NidConcerns", concern_id, {"client_informed": 1})
+
+
+def list_pending_client_notifications(user_id: int) -> list:
+    """Tickets this user reported that are Resolved but they haven't yet
+    confirmed telling the client -- powers the notification badge/banner."""
+    rows = [
+        row
+        for row in sheets_db.get_all("NidConcerns")
+        if row.get("reported_by_user_id") == int(user_id)
+        and row.get("status") == "Resolved"
+        and not row.get("client_informed")
+    ]
+    rows.sort(key=lambda r: (r.get("date_reported") or "", r.get("id") or 0), reverse=True)
+    return rows
 
 
 def update_nid_concern(concern_id: int, form) -> None:
@@ -1130,6 +1227,9 @@ def update_nid_concern(concern_id: int, form) -> None:
     trn_or_ref_no = (form.get("trn_or_ref_no") or "").strip()
     if not is_valid_trn_ref_no(trn_or_ref_no):
         raise ValueError("TRN / Reference No. must be exactly 29 digits.")
+    mobile_number = normalize_mobile_number(form.get("mobile_number"))
+    if not mobile_number:
+        raise ValueError("A valid mobile number is required (e.g. 09171234567).")
     concern_type = (form.get("concern_type") or "").strip()
     if concern_type not in NID_CONCERN_TYPES:
         raise ValueError("Unknown concern type.")
@@ -1144,6 +1244,7 @@ def update_nid_concern(concern_id: int, form) -> None:
             "trn_or_ref_no": trn_or_ref_no,
             "concern_type": concern_type,
             "description": _title_text(form.get("description")),
+            "mobile_number": mobile_number,
         },
     )
 

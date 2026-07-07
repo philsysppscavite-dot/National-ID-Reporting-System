@@ -58,18 +58,25 @@ _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 # GOOGLE_SHEET_ID isn't set. Safe to override per-deployment.
 DEFAULT_SHEET_ID = "1C0tDol4AQL59ODPbsADUVEZaGwlB7DAPwE8Fwgi4Lxs"
 
-# table name -> header row (also defines column order in the sheet)
+# table name -> header row (also defines column order in the sheet).
+# IMPORTANT: only ever APPEND new columns to the end of a table's list
+# below. Inserting in the middle would misalign every existing row in an
+# already-live sheet, since rows are read back positionally against this
+# list. init_sheets() will patch a live sheet's header row to add any new
+# column names it finds missing, but it always adds them as new columns
+# on the right, matching this append-only assumption.
 TABLES: dict[str, list[str]] = {
     "Users": ["id", "username", "password_hash", "full_name", "role", "active", "created_at"],
     "NidConcerns": [
         "id", "date_reported", "city_municipality", "trn_or_ref_no", "concern_type",
         "description", "status", "reported_by", "reported_by_user_id", "remarks", "created_at",
+        "mobile_number", "client_informed",
     ],
     "ConcernMessages": ["id", "concern_id", "sender_id", "body", "created_at"],
 }
 
 _INT_COLUMNS = {"id", "concern_id", "sender_id", "reported_by_user_id"}
-_BOOL_COLUMNS = {"active"}
+_BOOL_COLUMNS = {"active", "client_informed"}
 
 _CACHE_TTL_SECONDS = 20
 
@@ -125,6 +132,17 @@ def _get_worksheet(table: str):
     if not ws.row_values(1):
         # Blank tab (e.g. a brand-new spreadsheet) -- auto-generate the header row.
         ws.append_row(headers, value_input_option="RAW")
+    else:
+        # Existing tab -- if the app added new columns since this sheet was
+        # first created, patch the header row so they show up with a proper
+        # name instead of landing as unlabeled trailing columns.
+        existing_header = ws.row_values(1)
+        missing = [h for h in headers if h not in existing_header]
+        if missing:
+            start_col = len(existing_header) + 1
+            end_col = len(existing_header) + len(missing)
+            cell_range = f"{rowcol_to_a1(1, start_col)}:{rowcol_to_a1(1, end_col)}"
+            ws.update(cell_range, [missing], value_input_option="RAW")
     _worksheets[table] = ws
     return ws
 

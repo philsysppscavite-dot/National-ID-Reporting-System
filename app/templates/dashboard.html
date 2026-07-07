@@ -50,6 +50,44 @@
   </form>
 </section>
 
+{% if pending_client_notifications %}
+<section class="panel notify-panel">
+  <div class="panel-head">
+    <h3>Resolved &mdash; Notify Your Client</h3>
+    <p>These tickets you reported are now Resolved. Please contact the client using the mobile number on file, then confirm below.</p>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>TRN / Ref No.</th>
+          <th>Type</th>
+          <th>Client Mobile Number</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for concern in pending_client_notifications %}
+        <tr>
+          <td>{{ concern['date_reported'] }}</td>
+          <td><a href="{{ url_for('nid_concern_detail', concern_id=concern['id']) }}">{{ concern['trn_or_ref_no'] }}</a></td>
+          <td>{{ concern['concern_type'] }}</td>
+          <td>{{ concern['mobile_number'] or '—' }}</td>
+          <td>
+            <form method="post" action="{{ url_for('nid_concern_inform_client', concern_id=concern['id']) }}" style="display:inline;">
+              <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+              <button type="submit">I've Informed the Client</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
 <section class="panel">
   <div class="panel-head">
     <h3>NID Concern Matrix</h3>
@@ -102,6 +140,10 @@
     </label>
     <label>Reported By
       <input type="text" value="{{ current_full_name }}" disabled>
+    </label>
+    <label>Client Mobile Number <span class="subtle">(e.g. 09171234567)</span>
+      <input type="tel" name="mobile_number" inputmode="tel" placeholder="09171234567"
+             pattern="(09\d{9}|\+?63\d{10})" title="Enter a valid PH mobile number, e.g. 09171234567" required>
     </label>
     <label class="full-row">Description
       <textarea name="description" rows="2" placeholder="Describe the concern..." data-title-case></textarea>

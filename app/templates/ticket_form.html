@@ -25,6 +25,11 @@
         {% endfor %}
       </select>
     </label>
+    <label>Client Mobile Number <span class="subtle">(e.g. 09171234567)</span>
+      <input type="tel" name="mobile_number" inputmode="tel" placeholder="09171234567"
+             pattern="(09\d{9}|\+?63\d{10})" title="Enter a valid PH mobile number, e.g. 09171234567"
+             value="{{ concern['mobile_number'] }}" required>
+    </label>
     <label class="full-row">Description
       <textarea name="description" rows="3" data-title-case>{{ concern['description'] or '' }}</textarea>
     </label>
