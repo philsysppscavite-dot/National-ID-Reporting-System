@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Employee Output</p>
+    <h2>Output Per Person</h2>
+  </div>
+  <div class="actions">
+    <a class="button-link secondary" href="{{ url_for('output_summary_preview', **preview_query) }}">Preview Report</a>
+    <a class="button-link" href="{{ url_for('export_all_outputs', **export_query) }}">Export All PDFs</a>
+    <a class="button-link" href="{{ url_for('output_form') }}">Add Raw Output</a>
+  </div>
+</section>
+
+<section class="panel">
+  <form method="get" class="filters">
+    <select name="employee_id">
+      <option value="">All Employees</option>
+      {% for employee in employees %}
+      <option value="{{ employee['id'] }}" {% if filters.get('employee_id') == employee['id']|string %}selected{% endif %}>{{ employee["full_name"] }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" name="start_date" value="{{ filters.get('start_date', '') }}">
+    <input type="date" name="end_date" value="{{ filters.get('end_date', '') }}">
+    <button type="submit">Apply Filters</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Name</th>
+        {% for service in service_types %}
+        <th>{{ service }}</th>
+        {% endfor %}
+        <th>Total</th>
+        <th>Cumulative</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in outputs %}
+      <tr>
+        <td>{{ row["date"] }}</td>
+        <td>{{ row["name"] }}</td>
+        {% for service in service_types %}
+        <td>{{ row[service] }}</td>
+        {% endfor %}
+        <td>{{ row["total"] }}</td>
+        <td>{{ row["cumulative"] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 3 + service_types|length }}">No employee output records yet.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="{{ 2 + service_types|length }}" class="text-right"><strong>Filtered total</strong></td>
+        <td><strong>{{ total_quantity }}</strong></td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</section>
+{% endblock %}

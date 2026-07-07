@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Users</p>
+    <h2>{{ "Edit User" if user else "Add User" }}</h2>
+  </div>
+  <a class="button-link secondary" href="{{ url_for('users_list') }}">Back</a>
+</section>
+
+<section class="panel form-panel">
+  <form method="post" class="grid-form">
+    <label>Username
+      <input type="text" name="username" value="{{ user['username'] if user else '' }}" {% if user %}disabled{% else %}required{% endif %}>
+    </label>
+    <label>Full Name
+      <input type="text" name="full_name" value="{{ user['full_name'] if user else '' }}" required data-title-case>
+    </label>
+    <label>Role
+      <select name="role">
+        {% for role in roles %}
+        <option value="{{ role }}" {% if user and user['role'] == role %}selected{% endif %}>{{ role }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{{ "New Password (leave blank to keep current)" if user else "Password" }}
+      <input type="password" name="password" autocomplete="new-password" {% if not user %}required{% endif %}>
+    </label>
+    {% if user %}
+    <label class="checkbox-row">
+      <input type="checkbox" name="active" {% if user['active'] %}checked{% endif %}>
+      Active
+    </label>
+    {% endif %}
+    <div class="full-row">
+      <button type="submit">{{ "Save Changes" if user else "Create User" }}</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

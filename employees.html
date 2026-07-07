@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Schedule</p>
+    <h2>Field Assignment Calendar</h2>
+    <p class="subtle">Manage daily city assignments, operators, assistants, and activity status.</p>
+  </div>
+  <div class="actions">
+    <a class="button-link secondary" target="_blank" href="{{ url_for('schedules_report', **filters) }}">Print Schedule</a>
+    <a class="button-link secondary" target="_blank" href="{{ url_for('locator_chart_report', **filters) }}">Print Locator's Chart</a>
+    <a class="button-link secondary" target="_blank" href="{{ url_for('locator_chart_all_report', **filters) }}">Print All Locator's Chart</a>
+    <a class="button-link" href="{{ url_for('schedule_form') }}">Add Schedule</a>
+  </div>
+</section>
+
+<section class="panel">
+  <form method="get" class="filters compact-form">
+    <label for="employee_id">Employee</label>
+    <select id="employee_id" name="employee_id">
+      <option value="">All Assigned Employees</option>
+      {% for employee in employees %}
+      <option value="{{ employee['id'] }}" {% if filters.get('employee_id') == employee['id']|string %}selected{% endif %}>{{ employee['full_name'] }}</option>
+      {% endfor %}
+    </select>
+    <label for="start_date">Start Date</label>
+    <input id="start_date" type="date" name="start_date" value="{{ filters.get('start_date', '') }}">
+    <label for="end_date">End Date</label>
+    <input id="end_date" type="date" name="end_date" value="{{ filters.get('end_date', '') }}">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="">All Status</option>
+      <option value="Pending" {% if filters.get('status') == 'Pending' %}selected{% endif %}>Pending</option>
+      <option value="Approved" {% if filters.get('status') == 'Approved' %}selected{% endif %}>Approved</option>
+    </select>
+    <button type="submit">Apply</button>
+  </form>
+</section>
+
+<section class="panel schedule-calendar-panel">
+  <div id="schedule-calendar"></div>
+</section>
+
+<section class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>City / Municipality</th>
+        <th>Assigned Registration Kit Operator</th>
+        <th>Assigned Registration Assistant</th>
+        <th>Event / Place / Activity</th>
+        <th>Status</th>
+        <th>Vehicle</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in schedules %}
+      <tr>
+        <td>{{ row["schedule_date"] }}</td>
+        <td>{{ row["city_municipality"] }}</td>
+        <td>
+          {% if row["assigned_rko_names"] %}
+            {{ row["assigned_rko_names"]|join(", ") }}
+          {% else %}
+            -
+          {% endif %}
+        </td>
+        <td>
+          {% if row["assigned_ra_names"] %}
+            {{ row["assigned_ra_names"]|join(", ") }}
+          {% else %}
+            -
+          {% endif %}
+        </td>
+        <td>{{ row["event_place_activity"] or "-" }}</td>
+        <td>
+          <span class="status-pill {{ 'approved' if (row['status'] or '').lower() == 'approved' else 'pending' }}">
+            {{ row["status"] or "Pending" }}
+          </span>
+        </td>
+        <td>{{ row["vehicle"] or "-" }}</td>
+        <td class="actions">
+          <a href="{{ url_for('schedule_form', schedule_id=row['id']) }}">Edit</a>
+          <form method="post" action="{{ url_for('schedule_delete', schedule_id=row['id']) }}" onsubmit="return confirm('Delete this schedule item?');">
+            <button type="submit" class="link-button danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8">No schedule records yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script>
+  (function () {
+    const calendarEl = document.getElementById("schedule-calendar");
+    if (!calendarEl || typeof FullCalendar === "undefined") return;
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: "dayGridMonth",
+      headerToolbar: {
+        left: "prev,next today",
+        center: "title",
+        right: "dayGridMonth,timeGridWeek,listWeek"
+      },
+      events: {{ calendar_events|tojson }},
+      height: "auto",
+      eventDisplay: "block"
+    });
+    calendar.render();
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Accomplishment Report Dashboard</title>
+  <link rel="icon" type="image/png" href="{{ url_for('logo_file', filename='National ID.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="login-shell">
+    <div class="login-card">
+      <img src="{{ url_for('logo_file', filename='National ID.png') }}" alt="National ID logo">
+      <h2>Accomplishment Dashboard</h2>
+      <p>Sign in to continue</p>
+      {% if error %}
+        <div class="flash error" style="margin-bottom:16px;">{{ error }}</div>
+      {% endif %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}" style="margin-bottom:16px;">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+      <form method="post">
+        <label>Username
+          <input type="text" name="username" autocomplete="username" required autofocus>
+        </label>
+        <label>Password
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Sign in</button>
+      </form>
+      <p style="margin-top:18px; margin-bottom:0; font-size:0.9rem;">
+        Don't have an account?
+        <a href="{{ url_for('register') }}">Register Here</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

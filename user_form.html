@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Signatory</p>
+    <h2>Report signatories</h2>
+  </div>
+  <a class="button-link" href="{{ url_for('signatory_form') }}">Add Signatory</a>
+</section>
+
+<section class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Report Type</th>
+        <th>Role</th>
+        <th>Name</th>
+        <th>Position</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in signatories %}
+      <tr>
+        <td>{{ row["report_type"] }}</td>
+        <td>{{ row["role"] }}</td>
+        <td>{{ row["name"] }}</td>
+        <td>{{ row["position"] }}</td>
+        <td class="actions">
+          <a href="{{ url_for('signatory_form', signatory_id=row['id']) }}">Edit</a>
+          <form method="post" action="{{ url_for('signatory_delete', signatory_id=row['id']) }}" onsubmit="return confirm('Delete this signatory?');">
+            <button type="submit" class="link-button danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No signatories configured yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

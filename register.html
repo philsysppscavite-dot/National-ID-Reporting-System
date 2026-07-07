@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Employees</p>
+    <h2>{{ "Edit Employee" if employee else "Add Employee" }}</h2>
+  </div>
+  <a class="button-link secondary" href="{{ url_for('employees') }}">Back</a>
+</section>
+
+<section class="panel form-panel">
+  <form method="post" class="grid-form">
+    <label>Employee Code
+      <input type="text" name="employee_code" value="{{ employee['employee_code'] if employee else '' }}">
+    </label>
+    <label>Full Name
+      <input type="text" name="full_name" value="{{ employee['full_name'] if employee else '' }}" required>
+    </label>
+    <label>Position
+      {% set selected_position = employee['position'] if employee else '' %}
+      <select name="position">
+        <option value="">Select position</option>
+        <option value="Focal Person" {% if selected_position == 'Focal Person' %}selected{% endif %}>Focal Person</option>
+        <option value="Registration Kit Operator" {% if selected_position == 'Registration Kit Operator' %}selected{% endif %}>Registration Kit Operator</option>
+        <option value="Registration Assistant" {% if selected_position == 'Registration Assistant' %}selected{% endif %}>Registration Assistant</option>
+        {% if selected_position and selected_position not in ['Focal Person', 'Registration Kit Operator', 'Registration Assistant'] %}
+        <option value="{{ selected_position }}" selected>{{ selected_position }}</option>
+        {% endif %}
+      </select>
+    </label>
+    <label>Province
+      <input type="text" name="province" value="{{ employee['province'] if employee else '' }}">
+    </label>
+    <label>City / Municipality
+      {% set selected_city = employee['city_municipality'] if employee else '' %}
+      <select name="city_municipality">
+        <option value="">Select city / municipality</option>
+        {% for city in city_municipalities %}
+        <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>{{ city }}</option>
+        {% endfor %}
+        {% if selected_city and selected_city not in city_municipalities %}
+        <option value="{{ selected_city }}" selected>{{ selected_city }}</option>
+        {% endif %}
+      </select>
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" name="active" {% if not employee or employee['active'] %}checked{% endif %}>
+      Active
+    </label>
+    <div class="full-row">
+      <button type="submit">Save Employee</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

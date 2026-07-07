@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register · Accomplishment Report Dashboard</title>
+  <link rel="icon" type="image/png" href="{{ url_for('logo_file', filename='National ID.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="login-shell">
+    <div class="login-card">
+      <img src="{{ url_for('logo_file', filename='National ID.png') }}" alt="National ID logo">
+      <h2>Create Account</h2>
+      <p>Registration is limited to authorized PSA email addresses. If your email isn't recognized, or already has an account, please contact the administrator.</p>
+      {% if error %}
+        <div class="flash error" style="margin-bottom:16px;">{{ error }}</div>
+      {% endif %}
+      <form method="post">
+        <label>Email
+          <input type="email" name="username" autocomplete="username" required autofocus
+                 value="{{ form.username if form else '' }}" placeholder="you.name.psa@gmail.com">
+        </label>
+        <label>Full Name
+          <input type="text" name="full_name" autocomplete="name" required data-title-case
+                 value="{{ form.full_name if form else '' }}">
+        </label>
+        <label>Password
+          <input type="password" name="password" autocomplete="new-password" required minlength="8">
+        </label>
+        <label>Confirm Password
+          <input type="password" name="confirm_password" autocomplete="new-password" required minlength="8">
+        </label>
+        <button type="submit">Create Account</button>
+      </form>
+      <p style="margin-top:18px; margin-bottom:0; font-size:0.9rem;">
+        Already have an account?
+        <a href="{{ url_for('login') }}">Sign in</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

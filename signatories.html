@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Signatory</p>
+    <h2>{{ "Edit Signatory" if signatory else "Add Signatory" }}</h2>
+  </div>
+  <a class="button-link secondary" href="{{ url_for('signatories') }}">Back</a>
+</section>
+
+<section class="panel form-panel">
+  <form method="post" class="grid-form">
+    <label>Report Type
+      <select name="report_type">
+        {% set selected = signatory['report_type'] if signatory else 'general' %}
+        <option value="general" {% if selected == 'general' %}selected{% endif %}>General</option>
+        <option value="output" {% if selected == 'output' %}selected{% endif %}>Employee output summary</option>
+        <option value="registration" {% if selected == 'registration' %}selected{% endif %}>Registration</option>
+        <option value="delivery" {% if selected == 'delivery' %}selected{% endif %}>Delivery (legacy)</option>
+      </select>
+    </label>
+    <label>Role
+      {% set role = signatory['role'] if signatory else '' %}
+      <select name="role" required>
+        <option value="prepared_by" {% if role == 'prepared_by' %}selected{% endif %}>prepared_by</option>
+        <option value="verified_by" {% if role == 'verified_by' %}selected{% endif %}>verified_by</option>
+      </select>
+    </label>
+    <label>Full Name
+      <input type="text" name="name" value="{{ signatory['name'] if signatory else '' }}" required>
+    </label>
+    <label>Position
+      <input type="text" name="position" value="{{ signatory['position'] if signatory else '' }}" required>
+    </label>
+    <div class="full-row">
+      <button type="submit">Save Signatory</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Employees</p>
+    <h2>Employee master list</h2>
+  </div>
+  <a class="button-link" href="{{ url_for('employee_form') }}">Add Employee</a>
+</section>
+
+<section class="panel">
+  <form method="get" class="filters compact-form">
+    <label for="start_date">Start Date</label>
+    <input id="start_date" type="date" name="start_date" value="{{ request.args.get('start_date', '') }}">
+    <label for="end_date">End Date</label>
+    <input id="end_date" type="date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+    <button type="submit">Apply</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Name</th>
+        <th>Position</th>
+        <th>Province</th>
+        <th>City / Municipality</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for employee in employees %}
+      <tr>
+        <td>{{ employee["employee_code"] or "-" }}</td>
+        <td>{{ employee["full_name"] }}</td>
+        <td>{{ employee["position"] or "-" }}</td>
+        <td>{{ employee["province"] or "-" }}</td>
+        <td>{{ employee["city_municipality"] or "-" }}</td>
+        <td>{{ "Active" if employee["active"] else "Inactive" }}</td>
+        <td class="actions">
+          <a href="{{ url_for('employee_form', employee_id=employee['id']) }}">Edit</a>
+          <a href="{{ url_for('employee_report', employee_id=employee['id'], start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), category='registration') }}">PDF</a>
+          <form method="post" action="{{ url_for('employee_delete', employee_id=employee['id']) }}" onsubmit="return confirm('Delete this employee?');">
+            <button type="submit" class="link-button danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">No employees added yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

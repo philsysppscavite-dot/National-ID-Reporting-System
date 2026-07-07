@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Report Preview</p>
+    <h2>Employee Output Preview</h2>
+  </div>
+  <div class="actions">
+    <a class="button-link secondary" href="{{ url_for('outputs', **report_query) }}">Back</a>
+    <a class="button-link" target="_blank" href="{{ url_for('output_summary_report', **report_query) }}">Download PDF</a>
+  </div>
+</section>
+
+<section class="panel preview-panel">
+  <div class="report-preview">
+    <table class="preview-table">
+      <colgroup>
+        <col style="width:110px">
+        {% for service in service_types %}
+        <col style="width:120px">
+        {% endfor %}
+        <col style="width:90px">
+        <col style="width:110px">
+      </colgroup>
+      <thead>
+        <tr class="preview-letterhead-row">
+          <th colspan="{{ 3 + service_types|length }}">
+            <div class="preview-header">
+              <img class="preview-logo left" src="{{ url_for('logo_file', filename='National ID.png') }}" alt="National ID logo">
+              <div class="preview-header-text">
+                <div class="rep">Republic of the Philippines</div>
+                <div class="org"><strong>{{ app_settings.organization_name or 'PHILIPPINE STATISTICS AUTHORITY' }}</strong></div>
+                <div class="title"><strong>Employee Output Summary</strong></div>
+              </div>
+              <img class="preview-logo right" src="{{ url_for('logo_file', filename='PSA.png') }}" alt="PSA logo">
+            </div>
+            <div class="preview-meta">
+              <div><strong>Date Filter:</strong>
+                {% if start_date and end_date %}{{ start_date }} to {{ end_date }}
+                {% elif start_date %}From {{ start_date }}
+                {% elif end_date %}Until {{ end_date }}
+                {% else %}All dates{% endif %}
+              </div>
+              <div><strong>Employee:</strong> {{ employee_name or 'All Employees' }}</div>
+            </div>
+          </th>
+        </tr>
+        <tr>
+          <th>Date</th>
+          {% for service in service_types %}
+          <th>{{ service }}</th>
+          {% endfor %}
+          <th>Total</th>
+          <th>Cumulative</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row["date"] }}</td>
+          {% for service in service_types %}
+          <td>{{ row[service] }}</td>
+          {% endfor %}
+          <td>{{ row["total"] }}</td>
+          <td>{{ row["cumulative"] }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="{{ 3 + service_types|length }}">No rows for the selected date range.</td>
+        </tr>
+        {% endfor %}
+        {% if rows and grand_totals %}
+        <tr class="grand-total-row">
+          <td><strong>Grand Total</strong></td>
+          {% for service in service_types %}
+          <td><strong>{{ grand_totals["services"][service] }}</strong></td>
+          {% endfor %}
+          <td><strong>{{ grand_totals["total"] }}</strong></td>
+          <td><strong>{{ grand_totals["cumulative"] }}</strong></td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <div class="preview-signatories">
+      <div class="signatory-block">
+        <div class="sign-label">Prepared by</div>
+        <div class="sign-line"></div>
+        <div class="sign-name">{{ prepared_by_name }}</div>
+        <div class="sign-position">{{ prepared_by_position }}</div>
+      </div>
+      <div class="signatory-block">
+        <div class="sign-label">Verified as correct by</div>
+        <div class="sign-line"></div>
+        <div class="sign-name">{{ verified_by.get("name", "") if verified_by else "" }}</div>
+        <div class="sign-position">{{ (verified_by.get("position") or "Focal Person") if verified_by else "Focal Person" }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

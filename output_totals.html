@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Employee Output</p>
+    <h2>{{ "Edit Output" if output else "Add Output" }}</h2>
+  </div>
+  <a class="button-link secondary" href="{{ url_for('outputs') }}">Back</a>
+</section>
+
+<section class="panel form-panel">
+  <form method="post" class="grid-form">
+    <label>Employee
+      <select name="employee_id" required>
+        <option value="">Select employee</option>
+        {% for employee in employees %}
+        <option value="{{ employee['id'] }}" {% if output and output['employee_id'] == employee['id'] %}selected{% endif %}>{{ employee["full_name"] }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Work Date
+      <input type="date" name="work_date" value="{{ output['work_date'] if output else '' }}" required>
+    </label>
+    <label>Category
+      <select name="category" required>
+        {% set selected = output['category'] if output else '' %}
+        <option value="registration" {% if selected == 'registration' %}selected{% endif %}>Registration</option>
+        <option value="delivery" {% if selected == 'delivery' %}selected{% endif %}>Delivery</option>
+      </select>
+    </label>
+    <label>Activity Type
+      <input type="text" name="activity_type" value="{{ output['activity_type'] if output else '' }}" placeholder="National ID Registration">
+    </label>
+    <label>Quantity
+      <input type="number" name="quantity" min="0" value="{{ output['quantity'] if output else 0 }}" required>
+    </label>
+    <label>Province
+      <input type="text" name="province" value="{{ output['province'] if output else '' }}">
+    </label>
+    <label>City / Municipality
+      {% set selected_city = output['city_municipality'] if output else '' %}
+      <select name="city_municipality">
+        <option value="">Select city / municipality</option>
+        {% for city in city_municipalities %}
+        <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>{{ city }}</option>
+        {% endfor %}
+        {% if selected_city and selected_city not in city_municipalities %}
+        <option value="{{ selected_city }}" selected>{{ selected_city }}</option>
+        {% endif %}
+      </select>
+    </label>
+    <label>Source Reference
+      <input type="text" name="source_ref" value="{{ output['source_ref'] if output else '' }}">
+    </label>
+    <label class="full-row">Remarks
+      <textarea name="remarks" rows="4">{{ output['remarks'] if output else '' }}</textarea>
+    </label>
+    <div class="full-row">
+      <button type="submit">Save Output</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

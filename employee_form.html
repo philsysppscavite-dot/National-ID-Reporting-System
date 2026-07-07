@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Messages</p>
+    <h2>Direct Messages</h2>
+    <p class="subtle">Pick a colleague to chat with. Messages disappear automatically 10 hours after they're sent.</p>
+  </div>
+</section>
+
+<section class="panel messenger-panel">
+  <div class="messenger-shell">
+    <aside class="messenger-contacts">
+      {% for contact in contacts %}
+      <a class="messenger-contact {{ 'active' if active_contact and active_contact['id'] == contact['id'] else '' }}"
+         href="{{ url_for('messages_thread', user_id=contact['id']) }}">
+        <div class="messenger-contact-name">{{ contact['full_name'] }}</div>
+        <div class="messenger-contact-role">{{ contact['role'] }}</div>
+        {% if unread.get(contact['id']) %}
+        <span class="nav-badge">{{ unread.get(contact['id']) }}</span>
+        {% endif %}
+      </a>
+      {% else %}
+      <p class="subtle">No other users yet.</p>
+      {% endfor %}
+    </aside>
+
+    <div class="messenger-thread">
+      {% if active_contact %}
+        <div class="messenger-thread-head">
+          <strong>{{ active_contact['full_name'] }}</strong>
+          <span class="subtle">{{ active_contact['role'] }}</span>
+        </div>
+        <div class="chat-thread" id="dm-thread" data-user-id="{{ active_contact['id'] }}">
+          {% for m in thread %}
+          <div class="chat-bubble {{ 'mine' if m['sender_id'] == session.get('user_id') else '' }}">
+            <div class="chat-meta">
+              <strong>{{ m['sender_name'] }}</strong>
+              <span class="chat-time">{{ m['created_at'] }}</span>
+            </div>
+            <div class="chat-body">{{ m['body'] }}</div>
+          </div>
+          {% else %}
+          <p class="subtle">No messages yet. Auto-delete keeps this thread tidy after 10 hours.</p>
+          {% endfor %}
+        </div>
+        <form method="post" class="chat-compose" id="dm-compose">
+          <textarea name="body" rows="2" placeholder="Type a message..." required></textarea>
+          <button type="submit">Send</button>
+        </form>
+      {% else %}
+        <p class="subtle" style="padding:24px;">Select a colleague on the left to start a conversation.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% if active_contact %}
+<script>
+(function () {
+  const userId = {{ active_contact['id'] }};
+  const threadEl = document.getElementById('dm-thread');
+  const form = document.getElementById('dm-compose');
+  const currentUserId = {{ session.get('user_id') }};
+
+  function renderThread(messages) {
+    threadEl.innerHTML = '';
+    if (!messages.length) {
+      const p = document.createElement('p');
+      p.className = 'subtle';
+      p.textContent = "No messages yet. Auto-delete keeps this thread tidy after 10 hours.";
+      threadEl.appendChild(p);
+      return;
+    }
+    messages.forEach(function (m) {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble' + (m.mine ? ' mine' : '');
+      const meta = document.createElement('div');
+      meta.className = 'chat-meta';
+      meta.innerHTML = '<strong></strong> <span class="chat-time"></span>';
+      meta.querySelector('strong').textContent = m.sender_name;
+      meta.querySelector('.chat-time').textContent = m.created_at;
+      const body = document.createElement('div');
+      body.className = 'chat-body';
+      body.textContent = m.body;
+      bubble.appendChild(meta);
+      bubble.appendChild(body);
+      threadEl.appendChild(bubble);
+    });
+    threadEl.scrollTop = threadEl.scrollHeight;
+  }
+
+  function poll() {
+    fetch('/messages/' + userId + '/poll')
+      .then(function (r) { return r.json(); })
+      .then(renderThread)
+      .catch(function () {});
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const textarea = form.querySelector('textarea');
+    const body = textarea.value.trim();
+    if (!body) return;
+    fetch(form.action || window.location.href, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'fetch', 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'body=' + encodeURIComponent(body)
+    }).then(function () {
+      textarea.value = '';
+      poll();
+    });
+  });
+
+  threadEl.scrollTop = threadEl.scrollHeight;
+  setInterval(poll, 4000);
+})();
+</script>
+{% endif %}
+{% endblock %}

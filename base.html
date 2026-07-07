@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Output Totals</p>
+    <h2>Grand Total Output Per Employee</h2>
+  </div>
+</section>
+
+<section class="panel">
+  <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+    <form method="get" class="filters" style="flex: 1; display: flex; gap: 0.5rem;">
+      <select name="employee_id">
+        <option value="">All Employees</option>
+        {% for employee in employees %}
+        <option value="{{ employee['id'] }}" {% if filters.get('employee_id') == employee['id']|string %}selected{% endif %}>{{ employee["full_name"] }}</option>
+        {% endfor %}
+      </select>
+      <input type="date" name="start_date" value="{{ filters.get('start_date', '') }}">
+      <input type="date" name="end_date" value="{{ filters.get('end_date', '') }}">
+      <button type="submit">Apply Filters</button>
+    </form>
+    <form method="post" action="{{ url_for('download_output_totals') }}" style="margin: 0;">
+      <input type="hidden" name="employee_id" value="{{ filters.get('employee_id', '') }}">
+      <input type="hidden" name="start_date" value="{{ filters.get('start_date', '') }}">
+      <input type="hidden" name="end_date" value="{{ filters.get('end_date', '') }}">
+      <button type="submit" style="background-color: #28a745; padding: 0.5rem 1rem; border: none; border-radius: 4px; color: white; cursor: pointer; white-space: nowrap;">📥 Download Excel</button>
+    </form>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Employee</th>
+        {% for service in service_types %}
+        <th>{{ service }}</th>
+        {% endfor %}
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row["name"] }}</td>
+        {% for service in service_types %}
+        <td>{{ row[service] }}</td>
+        {% endfor %}
+        <td><strong>{{ row["total"] }}</strong></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 1 + service_types|length }}">No employee output records yet.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="{{ 1 + service_types|length }}" class="text-right"><strong>Grand Total</strong></td>
+        <td><strong>{{ total_quantity }}</strong></td>
+      </tr>
+    </tfoot>
+  </table>
+</section>
+{% endblock %}

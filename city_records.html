@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Ticket #{{ concern['id'] }}</p>
+    <h2>Edit Ticket</h2>
+  </div>
+  <a class="button-link secondary" href="{{ url_for('nid_concern_detail', concern_id=concern['id']) }}">Back to Ticket</a>
+</section>
+
+<section class="panel form-panel">
+  <form method="post" class="grid-form">
+    <label>Date
+      <input type="date" name="date_reported" value="{{ concern['date_reported'] }}" required>
+    </label>
+    <label>TRN / Reference No. <span class="subtle">(exactly 29 digits)</span>
+      <input type="text" name="trn_or_ref_no" inputmode="numeric" pattern="\d{29}" maxlength="29"
+             title="Must be exactly 29 digits" value="{{ concern['trn_or_ref_no'] }}" required>
+    </label>
+    <label>Concern Type
+      <select name="concern_type">
+        {% for concern_type in nid_concern_types %}
+        <option value="{{ concern_type }}" {% if concern['concern_type'] == concern_type %}selected{% endif %}>{{ concern_type }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Client Mobile Number <span class="subtle">(e.g. 09171234567)</span>
+      <input type="tel" name="mobile_number" inputmode="tel" placeholder="09171234567"
+             pattern="(09\d{9}|\+?63\d{10})" title="Enter a valid PH mobile number, e.g. 09171234567"
+             value="{{ concern['mobile_number'] }}" required>
+    </label>
+    <label class="full-row">Description
+      <textarea name="description" rows="3" data-title-case>{{ concern['description'] or '' }}</textarea>
+    </label>
+    <div class="full-row">
+      <button type="submit">Save Changes</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
