@@ -141,6 +141,8 @@ def _get_worksheet(table: str):
         if missing:
             start_col = len(existing_header) + 1
             end_col = len(existing_header) + len(missing)
+            if end_col > ws.col_count:
+                ws.add_cols(end_col - ws.col_count)
             cell_range = f"{rowcol_to_a1(1, start_col)}:{rowcol_to_a1(1, end_col)}"
             ws.update(cell_range, [missing], value_input_option="RAW")
     _worksheets[table] = ws
