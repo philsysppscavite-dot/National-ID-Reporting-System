@@ -1,1 +1,1 @@
-web: gunicorn wsgi:app
+python-3.11.7
