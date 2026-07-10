@@ -1162,6 +1162,35 @@ td.num.flag {
   font-weight: 700;
 }
 
+.ticket-subhead-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ticket-copy-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ticket-copy-toolbar #copyTrnBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trn-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.trn-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
 .ticket-toolbar {
   display: flex;
   flex-wrap: wrap;

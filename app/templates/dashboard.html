@@ -125,16 +125,17 @@
   </div>
   <form method="post" action="{{ url_for('nid_concern_create') }}" class="grid-form compact-grid">
     <label>Date
-      <input type="date" name="date_reported" required>
+      <input type="date" name="date_reported" value="{{ ticket_form_old.date_reported if ticket_form_old else '' }}" required>
     </label>
     <label>TRN / Reference No. <span class="subtle">(exactly 29 digits)</span>
       <input type="text" name="trn_or_ref_no" inputmode="numeric" pattern="\d{29}" maxlength="29"
-             title="Must be exactly 29 digits" placeholder="29-digit TRN / reference number" required>
+             title="Must be exactly 29 digits" placeholder="29-digit TRN / reference number"
+             value="{{ ticket_form_old.trn_or_ref_no if ticket_form_old else '' }}" required>
     </label>
     <label>Concern Type
       <select name="concern_type">
         {% for concern_type in nid_concern_types %}
-        <option value="{{ concern_type }}">{{ concern_type }}</option>
+        <option value="{{ concern_type }}" {% if ticket_form_old and ticket_form_old.concern_type == concern_type %}selected{% endif %}>{{ concern_type }}</option>
         {% endfor %}
       </select>
     </label>
@@ -143,10 +144,11 @@
     </label>
     <label>Client Mobile Number <span class="subtle">(e.g. 09171234567)</span>
       <input type="tel" name="mobile_number" inputmode="tel" placeholder="09171234567"
-             pattern="(09\d{9}|\+?63\d{10})" title="Enter a valid PH mobile number, e.g. 09171234567" required>
+             pattern="(09\d{9}|\+?63\d{10})" title="Enter a valid PH mobile number, e.g. 09171234567"
+             value="{{ ticket_form_old.mobile_number if ticket_form_old else '' }}" required>
     </label>
     <label class="full-row">Description
-      <textarea name="description" rows="2" placeholder="Describe the concern..." data-title-case></textarea>
+      <textarea name="description" rows="2" placeholder="Describe the concern..." data-title-case>{{ ticket_form_old.description if ticket_form_old else '' }}</textarea>
     </label>
     <div class="full-row">
       <button type="submit">Log Ticket</button>
@@ -155,9 +157,18 @@
 
   <div class="panel-subhead ticket-subhead">
     <h4>Recent Tickets</h4>
-    {% if total_tickets %}
-    <span class="ticket-count-pill">{{ total_tickets }} total</span>
-    {% endif %}
+    <div class="ticket-subhead-right">
+      {% if total_tickets %}
+      <span class="ticket-count-pill">{{ total_tickets }} total</span>
+      {% endif %}
+      {% if current_role == ROLE_ADMIN %}
+      <div class="ticket-copy-toolbar">
+        <span id="trnSelectedCount" class="subtle">0/10 selected</span>
+        <button type="button" id="copyTrnBtn" class="button-link secondary" disabled>Copy Selected TRNs</button>
+        <button type="button" id="clearTrnBtn" class="button-link secondary">Clear</button>
+      </div>
+      {% endif %}
+    </div>
   </div>
 
   <form method="get" class="ticket-toolbar">
@@ -207,6 +218,9 @@
     <table class="ticket-table">
       <thead>
         <tr>
+          {% if current_role == ROLE_ADMIN %}
+          <th></th>
+          {% endif %}
           <th>#</th>
           <th>Date</th>
           <th>TRN / Ref No.</th>
@@ -221,6 +235,11 @@
       <tbody>
         {% for concern in recent_nid_concerns %}
         <tr>
+          {% if current_role == ROLE_ADMIN %}
+          <td>
+            <input type="checkbox" class="trn-checkbox" data-trn="{{ concern['trn_or_ref_no'] }}">
+          </td>
+          {% endif %}
           <td class="num subtle">{{ concern['id'] }}</td>
           <td>{{ concern['date_reported'] }}</td>
           <td><a href="{{ url_for('nid_concern_detail', concern_id=concern['id']) }}">{{ concern['trn_or_ref_no'] }}</a></td>
@@ -248,11 +267,85 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="9">No tickets match this filter.</td></tr>
+        <tr><td colspan="{{ 10 if current_role == ROLE_ADMIN else 9 }}">No tickets match this filter.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+
+  {% if current_role == ROLE_ADMIN %}
+  <script>
+    (function () {
+      var MAX_SELECTED = 10;
+      var boxes = Array.prototype.slice.call(document.querySelectorAll(".trn-checkbox"));
+      var countEl = document.getElementById("trnSelectedCount");
+      var copyBtn = document.getElementById("copyTrnBtn");
+      var clearBtn = document.getElementById("clearTrnBtn");
+      if (!boxes.length || !countEl || !copyBtn) { return; }
+
+      function selectedBoxes() {
+        return boxes.filter(function (b) { return b.checked; });
+      }
+
+      function refresh() {
+        var selected = selectedBoxes();
+        countEl.textContent = selected.length + "/" + MAX_SELECTED + " selected";
+        copyBtn.disabled = selected.length === 0;
+        boxes.forEach(function (b) {
+          if (!b.checked) {
+            b.disabled = selected.length >= MAX_SELECTED;
+          }
+        });
+      }
+
+      boxes.forEach(function (box) {
+        box.addEventListener("change", function () {
+          if (box.checked && selectedBoxes().length > MAX_SELECTED) {
+            box.checked = false;
+          }
+          refresh();
+        });
+      });
+
+      clearBtn && clearBtn.addEventListener("click", function () {
+        boxes.forEach(function (b) { b.checked = false; b.disabled = false; });
+        refresh();
+      });
+
+      copyBtn.addEventListener("click", function () {
+        var trns = selectedBoxes().map(function (b) { return b.dataset.trn; }).filter(Boolean);
+        if (!trns.length) { return; }
+        var text = trns.join("\n");
+        var done = function () {
+          var original = copyBtn.textContent;
+          copyBtn.textContent = "Copied!";
+          setTimeout(function () { copyBtn.textContent = original; }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () {
+            fallbackCopy(text, done);
+          });
+        } else {
+          fallbackCopy(text, done);
+        }
+      });
+
+      function fallbackCopy(text, done) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand("copy"); done(); } catch (err) { /* no-op */ }
+        document.body.removeChild(ta);
+      }
+
+      refresh();
+    })();
+  </script>
+  {% endif %}
 
   {% if total_pages > 1 %}
   <nav class="pagination">

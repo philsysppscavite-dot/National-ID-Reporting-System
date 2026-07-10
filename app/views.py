@@ -215,6 +215,12 @@ def register_routes(app):
             page_end = page_start + TICKETS_PER_PAGE
             recent_nid_concerns = all_concerns[page_start:page_end]
 
+            # If the last "Log a New Ticket" submit failed validation, this
+            # carries the user's typed values back so the form can be
+            # repopulated instead of coming up blank. Pop it so it's only
+            # used once.
+            ticket_form_old = session.pop("ticket_form_old", None)
+
             return render_template(
                 "dashboard.html",
                 month=start_date[:7],
@@ -242,6 +248,7 @@ def register_routes(app):
                 total_tickets=total_tickets,
                 ticket_page_start=(page_start + 1) if total_tickets else 0,
                 ticket_page_end=min(page_end, total_tickets),
+                ticket_form_old=ticket_form_old,
             )
         except Exception as e:
             from flask import jsonify
@@ -259,6 +266,16 @@ def register_routes(app):
             return redirect(url_for("nid_concern_detail", concern_id=new_id))
         except ValueError as exc:
             flash(str(exc), "error")
+            # Keep whatever the user already typed so a validation error
+            # (bad TRN length, bad mobile number, etc.) doesn't force them
+            # to re-type the whole ticket from scratch on the next load.
+            session["ticket_form_old"] = {
+                "date_reported": request.form.get("date_reported", ""),
+                "trn_or_ref_no": request.form.get("trn_or_ref_no", ""),
+                "concern_type": request.form.get("concern_type", ""),
+                "mobile_number": request.form.get("mobile_number", ""),
+                "description": request.form.get("description", ""),
+            }
             return redirect(url_for("dashboard"))
 
     @app.post("/nid-concerns/<int:concern_id>/inform-client")

@@ -235,15 +235,21 @@ def find_one(table: str, **filters) -> dict | None:
     return matches[0] if matches else None
 
 
-def _next_id(table: str) -> int:
-    ids = [row["id"] for row in _read_all(table) if isinstance(row.get("id"), int)]
+def _next_id(table: str, use_cache: bool = True) -> int:
+    ids = [row["id"] for row in _read_all(table, use_cache=use_cache) if isinstance(row.get("id"), int)]
     return (max(ids) + 1) if ids else 1
 
 
 def insert(table: str, values: dict) -> int:
     with _lock:
         headers = TABLES[table]
-        new_id = _next_id(table)
+        # Always compute the new id from a fresh read (bypassing the ~20s
+        # cache), not a possibly-stale cached copy. Without this, a row
+        # inserted (or removed) by someone else moments earlier -- while
+        # this table's cache was still "fresh" -- could go unseen here,
+        # producing a duplicate id and silently clobbering/hiding a
+        # just-logged ticket.
+        new_id = _next_id(table, use_cache=False)
         record = {"created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         record.update(values)
         record["id"] = new_id
