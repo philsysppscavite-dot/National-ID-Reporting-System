@@ -1406,33 +1406,45 @@ def build_dar_workbook(
             )
 
     _meta_row(3, "Province:", province or "")
-    _meta_row(4, "City/Municipality:", city or (employee_name and "") or "")
-    _meta_row(5, "Month/Year:", _dar_month_label(start_date, end_date))
+    _meta_row(4, "City/Municipality:", city or employee_name or "")
 
-    ws.merge_cells("B6:G6")
-    rec_cell = ws.cell(row=6, column=2)
+    # Accomplishment Record bar + Month/Year share one row (saves vertical
+    # space vs. a separate Month/Year row, which is what let a typical
+    # single-employee/single-month report spill onto a second A4 page).
+    ws.merge_cells(start_row=5, start_column=2, end_row=5, end_column=5)
+    ws.merge_cells(start_row=5, start_column=6, end_row=5, end_column=7)
+    rec_cell = ws.cell(row=5, column=2)
     rec_cell.value = "Accomplishment Record"
     rec_cell.font = Font(name="Arial", size=11, bold=True)
     rec_cell.alignment = center
+    month_cell = ws.cell(row=5, column=6)
+    month_cell.value = f"Month/Year: {_dar_month_label(start_date, end_date)}"
+    month_cell.font = Font(name="Arial", size=10, bold=True, italic=True)
+    month_cell.alignment = Alignment(horizontal="right", vertical="center", wrap_text=True)
+    ws.row_dimensions[5].height = 18
     for c in range(2, 8):
-        ws.cell(row=6, column=c).border = Border(
+        ws.cell(row=5, column=c).border = Border(
             top=thin, bottom=thin,
             left=medium if c == 2 else thin,
             right=medium if c == 7 else thin,
         )
 
-    # ---- Table header (rows 7-8) ----
-    ws.cell(row=7, column=2, value="Date")
-    ws.cell(row=8, column=2, value="(mm/dd)")
-    ws.merge_cells(start_row=7, start_column=3, end_row=7, end_column=4)
-    ws.cell(row=7, column=3, value="No. of Captured")
-    ws.cell(row=8, column=3, value="Daily Captured")
-    ws.cell(row=8, column=4, value="Cumulative")
-    ws.merge_cells(start_row=7, start_column=5, end_row=8, end_column=7)
-    ws.cell(row=7, column=5, value="Remarks")
+    # ---- Table header (rows 6-7) ----
+    ws.cell(row=6, column=2, value="Date")
+    ws.cell(row=7, column=2, value="(mm/dd)")
+    ws.merge_cells(start_row=6, start_column=3, end_row=6, end_column=4)
+    ws.cell(row=6, column=3, value="No. of Captured")
+    ws.cell(row=7, column=3, value="Daily Captured")
+    ws.cell(row=7, column=4, value="Cumulative")
+    ws.merge_cells(start_row=6, start_column=5, end_row=7, end_column=7)
+    ws.cell(row=6, column=5, value="Remarks")
 
-    for r in (7, 8):
-        ws.row_dimensions[r].height = 20
+    # Row 6 is a touch taller than row 7 so the merged, wrapped "No. of
+    # Captured" title always has room to breathe instead of getting
+    # visually clipped at the bottom.
+    ws.row_dimensions[6].height = 24
+    ws.row_dimensions[7].height = 18
+    for r in (6, 7):
         for c in range(2, 8):
             cell = ws.cell(row=r, column=c)
             if cell.value is not None:
@@ -1440,13 +1452,13 @@ def build_dar_workbook(
                 cell.alignment = center
             cell.border = Border(
                 top=thin,
-                bottom=medium if r == 8 else thin,
+                bottom=medium if r == 7 else thin,
                 left=medium if c == 2 else thin,
                 right=medium if c == 7 else thin,
             )
 
     # ---- Data rows (Legend row removed per updated layout) ----
-    current_row = 9
+    current_row = 8
     cumulative = 0
     block_start_rows: list[int] = []
     for date_raw in order:
@@ -1529,10 +1541,10 @@ def build_dar_workbook(
         # No data yet: still render an empty table row so the template prints cleanly.
         # Merge B/C/D (Date, Daily Captured, Cumulative) and E:F (Remarks label) so the
         # empty block has exactly the same cell structure/borders as a populated block.
-        ws.merge_cells(start_row=9, start_column=2, end_row=10, end_column=2)
-        ws.merge_cells(start_row=9, start_column=3, end_row=10, end_column=3)
-        ws.merge_cells(start_row=9, start_column=4, end_row=10, end_column=4)
-        for r in (9, 10):
+        ws.merge_cells(start_row=8, start_column=2, end_row=9, end_column=2)
+        ws.merge_cells(start_row=8, start_column=3, end_row=9, end_column=3)
+        ws.merge_cells(start_row=8, start_column=4, end_row=9, end_column=4)
+        for r in (8, 9):
             ws.row_dimensions[r].height = 24
             for c in range(2, 8):
                 ws.cell(row=r, column=c).border = Border(
@@ -1541,7 +1553,7 @@ def build_dar_workbook(
                     top=thin,
                     bottom=thin,
                 )
-        current_row = 11
+        current_row = 10
 
     # ---- Grand total ----
     grand_total_row = current_row
@@ -1618,39 +1630,24 @@ def build_dar_workbook(
     ws.sheet_view.showGridLines = False
     ws.print_area = f"B1:G{pos_row + 2}"
     ws.page_setup.orientation = "portrait"
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    # Force the whole report onto a single A4 page in both directions --
+    # this is the individual employee's DAR, which should always read as
+    # one printed sheet, not spill a stray last row or two onto a second
+    # page.
+    ws.page_setup.fitToPage = True
     ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
+    ws.page_setup.fitToHeight = 1
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
     ws.page_margins.left = 0.3
     ws.page_margins.right = 0.3
-    ws.page_margins.top = 0.5
-    ws.page_margins.bottom = 0.5
+    ws.page_margins.top = 0.4
+    ws.page_margins.bottom = 0.4
 
-    # Repeat the letterhead/logo + table header + legend (rows 1-9) on every printed page,
-    # so a report spanning multiple pages doesn't show a headerless, borderless continuation.
-    ws.print_title_rows = "1:8"
-
-    # Avoid splitting a single date's block (its merged Date/Cumulative cells and service
-    # rows) across a page break, which is what produces the broken/half-drawn borders when
-    # a report runs past one page. We estimate how many data rows fit under the repeating
-    # header and insert a manual page break just before whichever block would otherwise
-    # overflow onto the next page.
-    if block_start_rows:
-        from openpyxl.worksheet.pagebreak import Break
-
-        block_height = len(active_services) + 3  # date row + service rows + total row + spacer
-        header_pt = 60 + 4 * 15 + 2 * 20  # row2 + rows3-6 + header rows7-8 (no legend row anymore)
-        margins_pt = (0.5 + 0.5) * 72
-        usable_pt = (297 / 25.4) * 72 - margins_pt - header_pt  # A4 portrait content height
-        rows_per_page = max(6, int(usable_pt // 24))
-
-        rows_since_break = 0
-        prev_block_start = None
-        for bs in block_start_rows:
-            if rows_since_break + block_height > rows_per_page and prev_block_start is not None:
-                ws.row_breaks.append(Break(id=bs - 1))
-                rows_since_break = 0
-            rows_since_break += block_height
-            prev_block_start = bs
+    # Repeat the letterhead/logo + table header (rows 1-7) if a viewer ever
+    # re-paginates this despite the single-page fit above (e.g. printing at
+    # 100% instead of "fit to 1 page").
+    ws.print_title_rows = "1:7"
 
     out = io.BytesIO()
     wb.save(out)
