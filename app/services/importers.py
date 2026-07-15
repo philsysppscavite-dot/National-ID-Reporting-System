@@ -162,6 +162,9 @@ def _register_import_source(
     last_status: str | None = None,
     last_error: str | None = None,
     rows_imported: int | None = None,
+    label: str | None = None,
+    created_by_user_id: int | None = None,
+    created_by_name: str | None = None,
 ) -> None:
     try:
         save_import_source(
@@ -173,12 +176,22 @@ def _register_import_source(
             last_status=last_status,
             last_error=last_error,
             rows_imported=rows_imported,
+            label=label,
+            created_by_user_id=created_by_user_id,
+            created_by_name=created_by_name,
         )
     except Exception:
         pass
 
 
-def import_from_csv_url(csv_url: str, original_url: str | None = None) -> int:
+def import_from_csv_url(
+    csv_url: str,
+    original_url: str | None = None,
+    *,
+    label: str | None = None,
+    created_by_user_id: int | None = None,
+    created_by_name: str | None = None,
+) -> int:
     source_type = "google_sheet"
     original_url = original_url or csv_url
     inserted = 0
@@ -194,6 +207,9 @@ def import_from_csv_url(csv_url: str, original_url: str | None = None) -> int:
             csv_url,
             last_status="ok",
             rows_imported=inserted,
+            label=label,
+            created_by_user_id=created_by_user_id,
+            created_by_name=created_by_name,
         )
         return inserted
     except Exception as e:
@@ -203,6 +219,9 @@ def import_from_csv_url(csv_url: str, original_url: str | None = None) -> int:
             csv_url,
             last_status="failed",
             last_error=str(e),
+            label=label,
+            created_by_user_id=created_by_user_id,
+            created_by_name=created_by_name,
         )
         raise RuntimeError(
             f"Failed to import from Google Sheet URL: {e}"
@@ -210,7 +229,14 @@ def import_from_csv_url(csv_url: str, original_url: str | None = None) -> int:
 
 
 def import_from_apps_script(
-    url: str, method: str = "GET", payload: dict | None = None, original_url: str | None = None
+    url: str,
+    method: str = "GET",
+    payload: dict | None = None,
+    original_url: str | None = None,
+    *,
+    label: str | None = None,
+    created_by_user_id: int | None = None,
+    created_by_name: str | None = None,
 ) -> int:
     source_type = "apps_script"
     original_url = original_url or url
@@ -239,6 +265,9 @@ def import_from_apps_script(
             payload=json.dumps(payload) if payload else None,
             last_status="ok",
             rows_imported=inserted,
+            label=label,
+            created_by_user_id=created_by_user_id,
+            created_by_name=created_by_name,
         )
         return inserted
     except Exception as e:
@@ -250,8 +279,30 @@ def import_from_apps_script(
             payload=json.dumps(payload) if payload else None,
             last_status="failed",
             last_error=str(e),
+            label=label,
+            created_by_user_id=created_by_user_id,
+            created_by_name=created_by_name,
         )
         raise RuntimeError(f"Apps Script import failed: {e}") from e
+
+
+def reimport_source(source_row) -> int:
+    """Re-pull data for a previously-saved link, e.g. when an admin
+    re-checks/reactivates it. Reuses whatever normalized_url/method/payload
+    was stored for that source. Duplicate rows are naturally skipped
+    because employee_outputs.source_key has a UNIQUE index."""
+    if source_row["source_type"] == "google_sheet":
+        return import_from_csv_url(
+            source_row["normalized_url"],
+            original_url=source_row["original_url"],
+        )
+    payload = json.loads(source_row["payload"]) if source_row["payload"] else {}
+    return import_from_apps_script(
+        source_row["normalized_url"],
+        method=source_row["method"] or "GET",
+        payload=payload,
+        original_url=source_row["original_url"],
+    )
 
 
 def _persist_rows(rows, source_ref: str) -> int:

@@ -35,6 +35,10 @@ from .repository import (
     get_user,
     city_service_rows,
     delete_imported_outputs,
+    delete_import_source,
+    delete_outputs_by_source_ref,
+    set_import_source_active,
+    get_import_source,
     get_schedule,
     is_valid_trn_ref_no,
     list_active_users,
@@ -70,7 +74,7 @@ from .repository import (
     update_user,
     user_can_view_concern,
 )
-from .services.importers import import_from_apps_script, import_from_csv_url
+from .services.importers import import_from_apps_script, import_from_csv_url, reimport_source
 from .services.reports import (
     build_dar_workbook,
     generate_all_employees_dar_pdf_zip,
@@ -786,27 +790,60 @@ def register_routes(app):
         flash("Signatory deleted.", "success")
         return redirect(url_for("signatories"))
 
+    # -----------------------------------------------------------------
+    # Import Sources (Administrator only)
+    #
+    # An admin wires a Google Sheet (or Apps Script endpoint) into the
+    # system here. From then on every user across every page/report just
+    # sees the data it feeds into employee_outputs -- there's nothing
+    # per-user to configure. Each saved link shows up with a checkbox: if
+    # the admin unchecks it, its rows stop counting everywhere instantly
+    # (they're removed from employee_outputs); re-checking it re-pulls the
+    # sheet and it counts again.
+    # -----------------------------------------------------------------
+
+    @app.get("/imports")
+    @roles_required(ROLE_ADMIN)
+    def import_sources_page():
+        return render_template("import_sources.html", sources=list_import_sources())
+
     @app.post("/imports/google-sheet")
+    @roles_required(ROLE_ADMIN)
     def import_google_sheet():
         original_csv_url = request.form.get("csv_url", "").strip()
-        csv_url = _normalize_google_sheet_url(original_csv_url)
-        if not csv_url:
-            flash("Google Sheet CSV export URL is required.", "error")
-            return redirect(url_for("dashboard"))
+        label = (request.form.get("label") or "").strip()
         try:
-            inserted = import_from_csv_url(csv_url, original_url=original_csv_url)
+            csv_url = _validate_google_sheet_url(original_csv_url)
+        except ValueError as e:
+            flash(str(e), "error")
+            return redirect(url_for("import_sources_page"))
+        try:
+            inserted = import_from_csv_url(
+                csv_url,
+                original_url=original_csv_url,
+                label=label,
+                created_by_user_id=current_user_id(),
+                created_by_name=session.get("full_name") or session.get("username"),
+            )
             flash(f"Imported {inserted} new output rows from Google Sheet. Existing rows were kept without duplication.", "success")
         except RuntimeError as e:
             flash(f"Import failed: {str(e)}", "error")
         except Exception as e:
             flash(f"An unexpected error occurred during import: {str(e)}", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("import_sources_page"))
 
     @app.post("/imports/apps-script")
+    @roles_required(ROLE_ADMIN)
     def import_apps_script():
         original_script_url = request.form.get("script_url", "").strip()
+        label = (request.form.get("label") or "").strip()
         method = request.form.get("method", "GET").strip().upper()
         payload_text = request.form.get("payload", "").strip()
+        try:
+            _validate_apps_script_url(original_script_url)
+        except ValueError as e:
+            flash(str(e), "error")
+            return redirect(url_for("import_sources_page"))
         payload = json.loads(payload_text) if payload_text else {}
         try:
             inserted = import_from_apps_script(
@@ -814,39 +851,76 @@ def register_routes(app):
                 method=method,
                 payload=payload,
                 original_url=original_script_url,
+                label=label,
+                created_by_user_id=current_user_id(),
+                created_by_name=session.get("full_name") or session.get("username"),
             )
             flash(f"Imported {inserted} output rows from Apps Script.", "success")
         except RuntimeError as e:
             flash(f"Import failed: {str(e)}", "error")
         except Exception as e:
             flash(f"An unexpected error occurred during import: {str(e)}", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("import_sources_page"))
 
     @app.post("/imports/check-sources")
+    @roles_required(ROLE_ADMIN)
     def check_import_sources():
-        sources = list_import_sources()
+        sources = [s for s in list_import_sources() if s["is_active"]]
         checked = 0
         failed = 0
         for source in sources:
             try:
-                if source["source_type"] == "google_sheet":
-                    import_from_csv_url(source["normalized_url"], original_url=source["original_url"])
-                else:
-                    payload = json.loads(source["payload"]) if source["payload"] else {}
-                    import_from_apps_script(
-                        source["normalized_url"],
-                        method=source["method"] or "GET",
-                        payload=payload,
-                        original_url=source["original_url"],
-                    )
+                reimport_source(source)
                 checked += 1
             except Exception:
                 failed += 1
-        summary = f"Checked {len(sources)} saved URL(s). {checked} successful, {failed} failed."
+        summary = f"Checked {len(sources)} active saved link(s). {checked} successful, {failed} failed."
         flash(summary, "success" if failed == 0 else "warning")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("import_sources_page"))
+
+    @app.post("/imports/<int:source_id>/toggle")
+    @roles_required(ROLE_ADMIN)
+    def toggle_import_source(source_id):
+        turn_on = request.form.get("is_active") == "1"
+        source = set_import_source_active(source_id, turn_on)
+        if not source:
+            flash("That saved link no longer exists.", "error")
+            return redirect(url_for("import_sources_page"))
+
+        if not turn_on:
+            removed = delete_outputs_by_source_ref(source["normalized_url"])
+            flash(
+                f"Unchecked \"{source['label'] or source['original_url']}\" -- {removed} row(s) no longer count anywhere in the system.",
+                "success",
+            )
+        else:
+            try:
+                inserted = reimport_source(source)
+                flash(
+                    f"Re-checked \"{source['label'] or source['original_url']}\" -- {inserted} row(s) pulled back in and counting again.",
+                    "success",
+                )
+            except Exception as e:
+                flash(f"Re-enabled, but the re-check failed: {e}", "warning")
+        return redirect(url_for("import_sources_page"))
+
+    @app.post("/imports/<int:source_id>/delete")
+    @roles_required(ROLE_ADMIN)
+    def delete_import_source_route(source_id):
+        source = get_import_source(source_id)
+        if not source:
+            flash("That saved link no longer exists.", "error")
+            return redirect(url_for("import_sources_page"))
+        removed = delete_outputs_by_source_ref(source["normalized_url"])
+        delete_import_source(source_id)
+        flash(
+            f"Removed \"{source['label'] or source['original_url']}\" and {removed} row(s) it had contributed.",
+            "success",
+        )
+        return redirect(url_for("import_sources_page"))
 
     @app.post("/imports/clear")
+    @roles_required(ROLE_ADMIN)
     def clear_imported_data():
         source_type = request.form.get("source_type", "google_sheet").strip()
         deleted = delete_imported_outputs(source_type)
@@ -857,7 +931,7 @@ def register_routes(app):
         else:
             label = "imported"
         flash(f"Deleted {deleted} {label} imported rows from the database.", "success")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("import_sources_page"))
 
     @app.post("/branding/logo")
     def upload_logo():
@@ -1210,3 +1284,31 @@ def _normalize_google_sheet_url(url: str) -> str:
         sheet_id = url.split("/spreadsheets/d/")[1].split("/")[0]
         return f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Form%20Responses%201"
     return url
+
+
+def _validate_google_sheet_url(original_url: str) -> str:
+    """Normalize a Google Sheet link and make sure it's actually a Google
+    Sheets URL before the server is told to fetch it -- only the assigned
+    admin can wire a link in at all (route is admin-only), and this keeps
+    the system from being pointed at an arbitrary third-party URL."""
+    if not original_url:
+        raise ValueError("Google Sheet CSV export URL is required.")
+    from urllib.parse import urlparse
+
+    parsed = urlparse(original_url)
+    if parsed.scheme != "https" or parsed.netloc.lower() != "docs.google.com":
+        raise ValueError("Only docs.google.com Google Sheets links are allowed.")
+    csv_url = _normalize_google_sheet_url(original_url)
+    if not csv_url:
+        raise ValueError("Could not recognize that as a Google Sheet link.")
+    return csv_url
+
+
+def _validate_apps_script_url(url: str) -> None:
+    if not url:
+        raise ValueError("Apps Script URL is required.")
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc.lower() != "script.google.com":
+        raise ValueError("Only script.google.com Apps Script links are allowed.")

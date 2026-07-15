@@ -96,6 +96,10 @@ CREATE TABLE IF NOT EXISTS import_sources (
     last_status TEXT,
     last_error TEXT,
     rows_imported INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    label TEXT,
+    created_by_user_id INTEGER,
+    created_by_name TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(source_type, normalized_url)
 );
@@ -202,6 +206,13 @@ def init_db() -> None:
         CREATE UNIQUE INDEX IF NOT EXISTS idx_schedule_assignments_unique
         ON schedule_assignments (schedule_id, employee_id, role)
         """
+    )
+    _ensure_column(db, "import_sources", "is_active", "INTEGER NOT NULL DEFAULT 1")
+    _ensure_column(db, "import_sources", "label", "TEXT")
+    _ensure_column(db, "import_sources", "created_by_user_id", "INTEGER")
+    _ensure_column(db, "import_sources", "created_by_name", "TEXT")
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_outputs_source_ref ON employee_outputs (source_ref)"
     )
     db.commit()
 

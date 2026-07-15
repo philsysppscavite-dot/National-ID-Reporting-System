@@ -352,12 +352,20 @@ def list_outputs(filters: dict | None = None) -> list:
 
 
 def list_import_sources() -> list:
+    """All saved import links, newest first, with a live count of how many
+    output rows currently in the system are tied to each one (so unchecking
+    a source and seeing its "rows counted" drop to 0 is immediately
+    verifiable, independent of the historical `rows_imported` tally)."""
     return get_db().execute(
         """
-        SELECT id, source_type, original_url, normalized_url, method, payload,
-               last_check_at, last_status, last_error, rows_imported, created_at
-        FROM import_sources
-        ORDER BY created_at DESC
+        SELECT s.id, s.source_type, s.original_url, s.normalized_url, s.method,
+               s.payload, s.last_check_at, s.last_status, s.last_error,
+               s.rows_imported, s.is_active, s.label, s.created_by_name,
+               s.created_at,
+               (SELECT COUNT(*) FROM employee_outputs o
+                 WHERE o.source_ref = s.normalized_url) AS rows_counted
+        FROM import_sources s
+        ORDER BY s.created_at DESC
         """
     ).fetchall()
 
@@ -386,6 +394,9 @@ def save_import_source(
     last_status: str | None = None,
     last_error: str | None = None,
     rows_imported: int | None = None,
+    label: str | None = None,
+    created_by_user_id: int | None = None,
+    created_by_name: str | None = None,
 ) -> int:
     db = get_db()
     now = datetime.now().isoformat()
@@ -400,7 +411,8 @@ def save_import_source(
                 last_check_at = ?,
                 last_status = ?,
                 last_error = ?,
-                rows_imported = COALESCE(?, rows_imported)
+                rows_imported = COALESCE(?, rows_imported),
+                label = COALESCE(?, label)
             WHERE id = ?
             """,
             (
@@ -411,6 +423,7 @@ def save_import_source(
                 last_status,
                 last_error,
                 rows_imported,
+                label,
                 existing["id"],
             ),
         )
@@ -421,8 +434,9 @@ def save_import_source(
         """
         INSERT INTO import_sources
         (source_type, original_url, normalized_url, method, payload,
-         last_check_at, last_status, last_error, rows_imported)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         last_check_at, last_status, last_error, rows_imported, is_active,
+         label, created_by_user_id, created_by_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
         """,
         (
             source_type,
@@ -434,10 +448,61 @@ def save_import_source(
             last_status,
             last_error,
             rows_imported or 0,
+            label,
+            created_by_user_id,
+            created_by_name,
         ),
     )
     db.commit()
     return cursor.lastrowid
+
+
+def set_import_source_active(source_id: int, is_active: bool):
+    """Flip a saved import link on/off. Returns the (now-stale) row as it
+    was *before* the change so the caller can act on its normalized_url /
+    source_type / method / payload -- e.g. to delete or re-pull its rows."""
+    source = get_import_source(source_id)
+    if not source:
+        return None
+    db = get_db()
+    db.execute(
+        "UPDATE import_sources SET is_active = ? WHERE id = ?",
+        (1 if is_active else 0, source_id),
+    )
+    db.commit()
+    return source
+
+
+def delete_import_source(source_id: int) -> bool:
+    source = get_import_source(source_id)
+    if not source:
+        return False
+    db = get_db()
+    db.execute("DELETE FROM import_sources WHERE id = ?", (source_id,))
+    db.commit()
+    return True
+
+
+def count_outputs_by_source_ref(source_ref: str) -> int:
+    row = get_db().execute(
+        "SELECT COUNT(*) AS c FROM employee_outputs WHERE source_ref = ?",
+        (source_ref,),
+    ).fetchone()
+    return row["c"] if row else 0
+
+
+def delete_outputs_by_source_ref(source_ref: str) -> int:
+    """Remove every output row tied to a specific saved link (used when an
+    admin unchecks/deactivates it, so it immediately stops counting
+    anywhere in the system -- totals, reports, city records, etc all read
+    from this same employee_outputs table)."""
+    db = get_db()
+    cursor = db.execute(
+        "DELETE FROM employee_outputs WHERE source_ref = ?",
+        (source_ref,),
+    )
+    db.commit()
+    return cursor.rowcount
 
 
 def employee_output_totals(filters: dict | None = None) -> list[dict]:

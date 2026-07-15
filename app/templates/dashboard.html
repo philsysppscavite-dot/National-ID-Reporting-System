@@ -35,20 +35,18 @@
   </article>
 </section>
 
+{% if current_role == ROLE_ADMIN %}
 <section class="panel">
   <div class="panel-head">
-    <h3>Google Sheet Import</h3>
-    <p>Use a CSV export URL from your Google Sheet to bring in output data.</p>
+    <h3>Data Imports</h3>
+    <p>
+      {{ import_sources|selectattr('is_active')|list|length }} of {{ import_sources|length }} saved Google Sheet /
+      Apps Script link(s) are actively counted into everyone's output data.
+    </p>
   </div>
-  <form method="post" action="{{ url_for('import_google_sheet') }}" class="stack-form">
-    <input type="url" name="csv_url" placeholder="https://docs.google.com/spreadsheets/d/.../edit?usp=sharing" required>
-    <button type="submit">Import Sheet Data</button>
-  </form>
-  <form method="post" action="{{ url_for('clear_imported_data') }}" class="stack-form" onsubmit="return confirm('Delete all Google Sheet imported rows from the database?');">
-    <input type="hidden" name="source_type" value="google_sheet">
-    <button type="submit" class="button-link secondary">Clear Google Sheet Imported Data</button>
-  </form>
+  <a class="button-link" href="{{ url_for('import_sources_page') }}">Manage Import Sources</a>
 </section>
+{% endif %}
 
 {% if pending_client_notifications %}
 <section class="panel notify-panel">

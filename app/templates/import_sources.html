@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Data Imports</p>
+    <h2>Import Sources</h2>
+    <p class="subtle">
+      Wire a Google Sheet or Apps Script link into the system here. Every user sees the data it feeds in,
+      everywhere in the app &mdash; Employee Output, Output Totals, DAR, City Records, and every report.
+      Uncheck a link at any time to stop it from counting, without losing the saved link itself.
+    </p>
+  </div>
+  <form method="post" action="{{ url_for('check_import_sources') }}" onsubmit="return confirm('Re-check every active saved link now?');">
+    <button type="submit" class="button-link secondary">Re-check All Active Links</button>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>Add a Google Sheet</h3>
+    <p>Paste the Sheet's normal share/edit link &mdash; it will be converted to a CSV export link automatically.</p>
+  </div>
+  <form method="post" action="{{ url_for('import_google_sheet') }}" class="stack-form">
+    <input type="text" name="label" placeholder="Label (optional) e.g. Cavite RKO Daily Log" maxlength="120">
+    <input type="url" name="csv_url" placeholder="https://docs.google.com/spreadsheets/d/.../edit?usp=sharing" required>
+    <button type="submit">Import &amp; Save Link</button>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>Add an Apps Script Endpoint</h3>
+    <p>For custom feeds published as a Google Apps Script web app.</p>
+  </div>
+  <form method="post" action="{{ url_for('import_apps_script') }}" class="stack-form">
+    <input type="text" name="label" placeholder="Label (optional)" maxlength="120">
+    <input type="url" name="script_url" placeholder="https://script.google.com/macros/s/.../exec" required>
+    <select name="method">
+      <option value="GET">GET</option>
+      <option value="POST">POST</option>
+    </select>
+    <input type="text" name="payload" placeholder='Optional JSON payload, e.g. {"sheet":"Form Responses 1"}'>
+    <button type="submit">Import &amp; Save Link</button>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>Saved Links</h3>
+    <p>{{ sources|selectattr('is_active')|list|length }} of {{ sources|length }} counted right now.</p>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Counted?</th>
+          <th>Label / Link</th>
+          <th>Type</th>
+          <th>Rows Counted</th>
+          <th>Last Checked</th>
+          <th>Status</th>
+          <th>Added By</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for source in sources %}
+        <tr>
+          <td>
+            <form method="post" action="{{ url_for('toggle_import_source', source_id=source['id']) }}">
+              <label class="source-toggle">
+                <input
+                  type="checkbox"
+                  name="is_active"
+                  value="1"
+                  {{ 'checked' if source['is_active'] else '' }}
+                  onchange="this.form.submit()"
+                >
+                <input type="hidden" name="is_active" value="0">
+                <span class="switch-track"></span>
+                <span class="switch-label">{{ 'On' if source['is_active'] else 'Off' }}</span>
+              </label>
+            </form>
+          </td>
+          <td>
+            <strong>{{ source['label'] or ('Google Sheet' if source['source_type'] == 'google_sheet' else 'Apps Script') }}</strong>
+            <span class="source-url subtle" title="{{ source['original_url'] }}">{{ source['original_url'] }}</span>
+          </td>
+          <td>{{ 'Google Sheet' if source['source_type'] == 'google_sheet' else 'Apps Script' }}</td>
+          <td>{{ source['rows_counted'] }}</td>
+          <td>{{ source['last_check_at'] or '—' }}</td>
+          <td>
+            {% if source['last_status'] == 'ok' %}
+              <span class="status-pill approved">OK</span>
+            {% elif source['last_status'] == 'failed' %}
+              <span class="status-pill failed" title="{{ source['last_error'] or '' }}">Failed</span>
+            {% else %}
+              <span class="status-pill pending">Unknown</span>
+            {% endif %}
+          </td>
+          <td>{{ source['created_by_name'] or '—' }}</td>
+          <td>
+            <form method="post" action="{{ url_for('delete_import_source_route', source_id=source['id']) }}" onsubmit="return confirm('Remove this saved link and delete every row it contributed? This cannot be undone.');">
+              <button type="submit" class="button-link secondary">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8">No links saved yet. Add one above.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

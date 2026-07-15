@@ -36,6 +36,7 @@
           Messages{% if unread_dm_total %} <span class="nav-badge">{{ unread_dm_total }}</span>{% endif %}
         </a>
         {% if current_role == ROLE_ADMIN %}
+        <a href="{{ url_for('import_sources_page') }}" class="{{ 'active' if request.endpoint == 'import_sources_page' else '' }}">Data Imports</a>
         <a href="{{ url_for('users_list') }}" class="{{ 'active' if request.endpoint in ['users_list', 'user_form'] else '' }}">Users</a>
         {% endif %}
       </nav>
