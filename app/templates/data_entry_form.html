@@ -10,7 +10,18 @@
 </section>
 
 <section class="panel form-panel">
-  <form method="post" class="grid-form">
+  <form method="post" class="grid-form" id="dataEntryForm">
+
+    <div class="form-section-title">Type of Registration</div>
+
+    <label class="full-row">Is this a National ID Registration or an Updating transaction?
+      {% set selected_record_type = entry['record_type'] if entry and entry['record_type'] else record_type_registration %}
+      <select name="record_type" id="field-record_type">
+        {% for option in record_type_options %}
+        <option value="{{ option }}" {% if selected_record_type == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
 
     <div class="form-section-title">Registration Details</div>
 
@@ -24,7 +35,7 @@
     <label>City / Municipality
       {% set locked = 'city_municipality' in locked_fields %}
       {% set selected_city = entry['city_municipality'] if entry else default_values.get('city_municipality', '') %}
-      <select name="city_municipality" {% if locked %}disabled{% endif %}>
+      <select name="city_municipality" id="field-city_municipality" {% if locked %}disabled{% endif %}>
         <option value="">Select city / municipality</option>
         {% for city in city_municipalities %}
         <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>{{ city }}</option>
@@ -38,7 +49,11 @@
 
     <label>Barangay
       {% set locked = 'barangay' in locked_fields %}
-      <input type="text" name="barangay" value="{{ entry['barangay'] if entry else default_values.get('barangay', '') }}" data-title-case {% if locked %}readonly{% endif %}>
+      <input type="text" name="barangay" id="field-barangay" list="barangay-options"
+             value="{{ entry['barangay'] if entry else default_values.get('barangay', '') }}"
+             placeholder="Select city / municipality first, or type here"
+             data-title-case {% if locked %}readonly{% endif %}>
+      <datalist id="barangay-options"></datalist>
       {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
@@ -50,7 +65,16 @@
 
     <label>Type of RC
       {% set locked = 'type_of_rc' in locked_fields %}
-      <input type="text" name="type_of_rc" value="{{ entry['type_of_rc'] if entry else default_values.get('type_of_rc', '') }}" placeholder="e.g. Fixed / Mobile / Pop-up" {% if locked %}readonly{% endif %}>
+      {% set selected_rc = entry['type_of_rc'] if entry else default_values.get('type_of_rc', '') %}
+      <select name="type_of_rc" {% if locked %}disabled{% endif %}>
+        <option value="">Select type of RC</option>
+        {% for option in type_of_rc_options %}
+        <option value="{{ option }}" {% if selected_rc == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+        {% if selected_rc and selected_rc not in type_of_rc_options %}
+        <option value="{{ selected_rc }}" selected>{{ selected_rc }}</option>
+        {% endif %}
+      </select>
       {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
@@ -84,7 +108,7 @@
       <input type="text" name="applicant_suffix" value="{{ entry['applicant_suffix'] if entry else '' }}" placeholder="Jr., Sr., III, etc.">
     </label>
 
-    <label class="field-hint">Date of Birth - Month
+    <label class="field-hint reg-only">Date of Birth - Month
       {% set selected_month = entry['dob_month'] if entry else '' %}
       <select name="dob_month">
         <option value="">Month</option>
@@ -94,15 +118,15 @@
       </select>
     </label>
 
-    <label class="field-hint">Date of Birth - Day
+    <label class="field-hint reg-only">Date of Birth - Day
       <input type="number" name="dob_day" min="1" max="31" value="{{ entry['dob_day'] if entry else '' }}" placeholder="e.g. 08">
     </label>
 
-    <label class="field-hint">Date of Birth - Year
+    <label class="field-hint reg-only">Date of Birth - Year
       <input type="number" name="dob_year" min="1900" max="2100" value="{{ entry['dob_year'] if entry else '' }}" placeholder="e.g. 1993">
     </label>
 
-    <label>Gender
+    <label class="reg-only">Gender
       {% set selected_gender = entry['gender'] if entry else '' %}
       <select name="gender">
         <option value="">Select gender</option>
@@ -112,15 +136,24 @@
       </select>
     </label>
 
-    <label>Age Category
-      <input type="text" name="age_category" value="{{ entry['age_category'] if entry else '' }}">
+    <label class="reg-only">Age Category
+      {% set selected_age_category = entry['age_category'] if entry else '' %}
+      <select name="age_category">
+        <option value="">Select age category</option>
+        {% for option in age_category_options %}
+        <option value="{{ option }}" {% if selected_age_category == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+        {% if selected_age_category and selected_age_category not in age_category_options %}
+        <option value="{{ selected_age_category }}" selected>{{ selected_age_category }}</option>
+        {% endif %}
+      </select>
     </label>
 
-    <label>Contact Number of Applicant / Guardian / Parent
+    <label class="reg-only">Contact Number of Applicant / Guardian / Parent
       <input type="text" name="contact_number" value="{{ entry['contact_number'] if entry else '' }}" placeholder="09171234567">
     </label>
 
-    <label>Overseas Registrant?
+    <label class="reg-only">Overseas Registrant?
       {% set selected_overseas = entry['overseas_registrant'] if entry else '' %}
       <select name="overseas_registrant">
         <option value="">Select</option>
@@ -136,7 +169,7 @@
       <input type="text" name="trn_or_pcn" value="{{ entry['trn_or_pcn'] if entry else '' }}">
     </label>
 
-    <label class="field-hint">For Recaptured Applicants - Old TRN (29 digits)
+    <label class="field-hint reg-only">For Recaptured Applicants - Old TRN (29 digits)
       <input type="text" name="old_trn" value="{{ entry['old_trn'] if entry else '' }}" pattern="\d{29}" maxlength="29" placeholder="29-digit number">
     </label>
 
@@ -150,19 +183,80 @@
       </select>
     </label>
 
-    <div class="form-section-title">ePhilID</div>
+    <div class="form-section-title upd-only">Updating Details</div>
 
-    <label>ePhilID Status
-      <input type="text" name="ephilid_status" value="{{ entry['ephilid_status'] if entry else '' }}" placeholder="e.g. Issued / Not Issued">
+    <label class="upd-only">PhilID/ePhilID Presented?
+      {% set selected_presented = entry['philid_ephilid_presented'] if entry else '' %}
+      <select name="philid_ephilid_presented">
+        <option value="">Select</option>
+        {% for option in yes_no_options %}
+        <option value="{{ option }}" {% if selected_presented == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
     </label>
 
-    <label>ePhilID Issued Date
+    <label class="upd-only">Change/Correction
+      {% set selected_change = entry['change_correction'] if entry else '' %}
+      <select name="change_correction">
+        <option value="">Select</option>
+        {% for option in change_correction_options %}
+        <option value="{{ option }}" {% if selected_change == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="upd-only">Fields to be Changed or corrected
+      {% set selected_fields_changed = entry['fields_changed'] if entry else '' %}
+      <select name="fields_changed">
+        <option value="">Select</option>
+        {% for option in fields_changed_options %}
+        <option value="{{ option }}" {% if selected_fields_changed == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="upd-only full-row">Supporting Document
+      {% set selected_doc = entry['supporting_document'] if entry else '' %}
+      <select name="supporting_document">
+        <option value="">Select</option>
+        {% for option in supporting_document_options %}
+        <option value="{{ option }}" {% if selected_doc == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="upd-only">National ID in Paper Form
+      {% set selected_form = entry['national_id_form_presented'] if entry else '' %}
+      <select name="national_id_form_presented">
+        <option value="">Select</option>
+        {% for option in national_id_form_options %}
+        <option value="{{ option }}" {% if selected_form == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="form-section-title reg-only">ePhilID</div>
+
+    <label class="reg-only">ePhilID Status
+      {% set selected_ephilid_status = entry['ephilid_status'] if entry else '' %}
+      <select name="ephilid_status">
+        <option value="">Select ePhilID status</option>
+        {% for option in ephilid_status_options %}
+        <option value="{{ option }}" {% if selected_ephilid_status == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+        {% if selected_ephilid_status and selected_ephilid_status not in ephilid_status_options %}
+        <option value="{{ selected_ephilid_status }}" selected>{{ selected_ephilid_status }}</option>
+        {% endif %}
+      </select>
+    </label>
+
+    <label class="reg-only">ePhilID Issued Date
       <input type="date" name="ephilid_issued_date" value="{{ entry['ephilid_issued_date'] if entry else '' }}">
     </label>
 
-    <div class="form-section-title">Assistance to Generation of Digital National ID</div>
+    <div class="form-section-title reg-only">Assistance to Generation of Digital National ID</div>
 
-    <label>Assistance Given
+    <label class="reg-only">Assistance Given
       {% set selected_assist = entry['digital_id_assistance'] if entry else '' %}
       <select name="digital_id_assistance">
         <option value="">Select</option>
@@ -172,7 +266,7 @@
       </select>
     </label>
 
-    <label>Successfully Generated?
+    <label class="reg-only">Successfully Generated?
       {% set selected_generated = entry['digital_id_generated'] if entry else '' %}
       <select name="digital_id_generated">
         <option value="">Select</option>
@@ -182,17 +276,17 @@
       </select>
     </label>
 
-    <label class="full-row">If generation is unsuccessful, indicate issues
+    <label class="full-row reg-only">If generation is unsuccessful, indicate issues
       <textarea name="digital_id_issue_notes" rows="2">{{ entry['digital_id_issue_notes'] if entry else '' }}</textarea>
     </label>
 
-    <div class="form-section-title">Other</div>
+    <div class="form-section-title reg-only">Other</div>
 
-    <label>Government Ayuda Programs
+    <label class="reg-only">Government Ayuda Programs
       <input type="text" name="gov_ayuda_programs" value="{{ entry['gov_ayuda_programs'] if entry else '' }}">
     </label>
 
-    <label>Authenticated
+    <label class="reg-only">Authenticated
       {% set selected_auth = entry['authenticated_status'] if entry else '' %}
       <select name="authenticated_status">
         <option value="">Not applicable</option>
@@ -207,4 +301,43 @@
     </div>
   </form>
 </section>
+
+<script>
+  (function () {
+    var barangaysByCity = {{ barangays_by_city_json | safe }};
+    var cityField = document.getElementById("field-city_municipality");
+    var barangayList = document.getElementById("barangay-options");
+    if (cityField && barangayList) {
+      function fillBarangayOptions() {
+        var options = barangaysByCity[cityField.value] || [];
+        barangayList.innerHTML = "";
+        options.forEach(function (name) {
+          var opt = document.createElement("option");
+          opt.value = name;
+          barangayList.appendChild(opt);
+        });
+      }
+      fillBarangayOptions();
+      cityField.addEventListener("change", fillBarangayOptions);
+    }
+  })();
+
+  (function () {
+    var form = document.getElementById("dataEntryForm");
+    if (!form) { return; }
+    var recordTypeField = document.getElementById("field-record_type");
+    if (!recordTypeField) { return; }
+    var regOnly = Array.prototype.slice.call(form.querySelectorAll(".reg-only"));
+    var updOnly = Array.prototype.slice.call(form.querySelectorAll(".upd-only"));
+
+    function applyVisibility() {
+      var isUpdating = recordTypeField.value === "Updating";
+      regOnly.forEach(function (el) { el.style.display = isUpdating ? "none" : ""; });
+      updOnly.forEach(function (el) { el.style.display = isUpdating ? "" : "none"; });
+    }
+
+    applyVisibility();
+    recordTypeField.addEventListener("change", applyVisibility);
+  })();
+</script>
 {% endblock %}

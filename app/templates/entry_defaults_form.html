@@ -53,7 +53,8 @@
     </label>
 
     <label>Barangay
-      <input type="text" name="barangay" id="field-barangay" value="{{ defaults['barangay'] if defaults else '' }}" data-title-case>
+      <input type="text" name="barangay" id="field-barangay" list="barangay-options" value="{{ defaults['barangay'] if defaults else '' }}" data-title-case>
+      <datalist id="barangay-options"></datalist>
       <label class="field-lock">
         <input type="checkbox" name="barangay_locked" id="lock-barangay"
                data-requires="field-barangay"
@@ -109,6 +110,25 @@
 </section>
 
 <script>
+  (function () {
+    var barangaysByCity = {{ barangays_by_city_json | safe }};
+    var cityField = document.getElementById("field-city_municipality");
+    var barangayList = document.getElementById("barangay-options");
+    if (cityField && barangayList) {
+      function fillBarangayOptions() {
+        var options = barangaysByCity[cityField.value] || [];
+        barangayList.innerHTML = "";
+        options.forEach(function (name) {
+          var opt = document.createElement("option");
+          opt.value = name;
+          barangayList.appendChild(opt);
+        });
+      }
+      fillBarangayOptions();
+      cityField.addEventListener("change", fillBarangayOptions);
+    }
+  })();
+
   (function () {
     var form = document.getElementById("entryDefaultsForm");
     if (!form) { return; }

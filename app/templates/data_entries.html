@@ -29,6 +29,12 @@
       <option value="{{ employee['id'] }}" {% if filters.get('rko_employee_id') == employee['id']|string %}selected{% endif %}>{{ employee["full_name"] }}</option>
       {% endfor %}
     </select>
+    <select name="record_type">
+      <option value="">All Types</option>
+      {% for option in record_type_options %}
+      <option value="{{ option }}" {% if filters.get('record_type') == option %}selected{% endif %}>{{ option }}</option>
+      {% endfor %}
+    </select>
     <input type="date" name="start_date" value="{{ filters.get('start_date', '') }}">
     <input type="date" name="end_date" value="{{ filters.get('end_date', '') }}">
     <input type="text" name="search" value="{{ filters.get('search', '') }}" placeholder="Search name, TRN">
@@ -39,6 +45,7 @@
     <thead>
       <tr>
         <th>Reporting Date</th>
+        <th>Type</th>
         <th>City / Municipality</th>
         <th>Barangay</th>
         <th>Name of RKO</th>
@@ -53,6 +60,7 @@
       {% for entry in entries %}
       <tr>
         <td>{{ entry["reporting_date"] }}</td>
+        <td>{% if entry["record_type"] == "Updating" %}<span class="status-badge status-open">Updating</span>{% else %}<span class="status-badge status-resolved">Registration</span>{% endif %}</td>
         <td>{{ entry["city_municipality"] or "-" }}</td>
         <td>{{ entry["barangay"] or "-" }}</td>
         <td>{{ entry["rko_full_name"] or "-" }}</td>
@@ -68,7 +76,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9">No data entries recorded yet.</td></tr>
+      <tr><td colspan="10">No data entries recorded yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

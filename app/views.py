@@ -13,17 +13,27 @@ from werkzeug.utils import secure_filename
 
 from .auth import current_role, current_user_id, is_isa_or_admin, roles_required
 from .db import ROLE_ADMIN, ROLE_ISA, ROLE_USER, ROLES
+from .cavite_barangays import BARANGAYS_BY_CITY
 from .repository import (
     CITY_MUNICIPALITIES,
     SERVICE_TYPES,
     NID_CONCERN_TYPES,
     NID_CONCERN_STATUSES,
     GENDER_OPTIONS,
+    AGE_CATEGORY_OPTIONS,
+    EPHILID_STATUS_OPTIONS,
     DIGITAL_ID_ASSISTANCE_OPTIONS,
     YES_NO_OPTIONS,
     OVERSEAS_REGISTRANT_OPTIONS,
     AUTHENTICATED_OPTIONS,
     DOB_MONTH_OPTIONS,
+    RECORD_TYPE_OPTIONS,
+    RECORD_TYPE_REGISTRATION,
+    TYPE_OF_RC_OPTIONS,
+    CHANGE_CORRECTION_OPTIONS,
+    FIELDS_CHANGED_OPTIONS,
+    SUPPORTING_DOCUMENT_OPTIONS,
+    NATIONAL_ID_FORM_OPTIONS,
     add_concern_message,
     create_nid_concern,
     create_user,
@@ -120,6 +130,7 @@ def register_routes(app):
         return {
             "app_settings": fetch_settings(),
             "city_municipalities": CITY_MUNICIPALITIES,
+            "barangays_by_city_json": json.dumps(BARANGAYS_BY_CITY, ensure_ascii=False),
             "ROLE_ADMIN": ROLE_ADMIN,
             "ROLE_ISA": ROLE_ISA,
             "current_role": session.get("role"),
@@ -522,6 +533,7 @@ def register_routes(app):
         filters = {
             "city_municipality": request.args.get("city_municipality") or None,
             "rko_employee_id": request.args.get("rko_employee_id") or None,
+            "record_type": request.args.get("record_type") or None,
             "start_date": request.args.get("start_date") or "",
             "end_date": request.args.get("end_date") or "",
             "search": request.args.get("search") or "",
@@ -533,6 +545,8 @@ def register_routes(app):
             entries=entries,
             employees=list_employees(),
             filters=filters,
+            city_municipalities=CITY_MUNICIPALITIES,
+            record_type_options=RECORD_TYPE_OPTIONS,
         )
 
     @app.route("/data-entries/new", methods=["GET", "POST"])
@@ -571,12 +585,21 @@ def register_routes(app):
             locked_fields=locked_fields,
             employees=list_employees(),
             gender_options=GENDER_OPTIONS,
+            age_category_options=AGE_CATEGORY_OPTIONS,
+            ephilid_status_options=EPHILID_STATUS_OPTIONS,
             digital_id_assistance_options=DIGITAL_ID_ASSISTANCE_OPTIONS,
             yes_no_options=YES_NO_OPTIONS,
             overseas_registrant_options=OVERSEAS_REGISTRANT_OPTIONS,
             authenticated_options=AUTHENTICATED_OPTIONS,
             dob_month_options=DOB_MONTH_OPTIONS,
             service_types=SERVICE_TYPES,
+            record_type_options=RECORD_TYPE_OPTIONS,
+            record_type_registration=RECORD_TYPE_REGISTRATION,
+            type_of_rc_options=TYPE_OF_RC_OPTIONS,
+            change_correction_options=CHANGE_CORRECTION_OPTIONS,
+            fields_changed_options=FIELDS_CHANGED_OPTIONS,
+            supporting_document_options=SUPPORTING_DOCUMENT_OPTIONS,
+            national_id_form_options=NATIONAL_ID_FORM_OPTIONS,
         )
 
     @app.post("/data-entries/<int:entry_id>/delete")

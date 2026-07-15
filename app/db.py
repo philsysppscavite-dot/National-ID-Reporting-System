@@ -171,6 +171,12 @@ CREATE TABLE IF NOT EXISTS data_entries (
     overseas_registrant TEXT,
     gov_ayuda_programs TEXT,
     authenticated_status TEXT,
+    record_type TEXT NOT NULL DEFAULT 'National ID Registration',
+    philid_ephilid_presented TEXT,
+    change_correction TEXT,
+    supporting_document TEXT,
+    fields_changed TEXT,
+    national_id_form_presented TEXT,
     created_by_user_id INTEGER,
     created_by_name TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -284,6 +290,16 @@ def init_db() -> None:
     _ensure_column(db, "data_entries", "created_by_name", "TEXT")
     _ensure_column(db, "data_entries", "sent_to_sheet", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(db, "data_entries", "sent_to_sheet_at", "TEXT")
+    # "Updating" transaction fields -- a Data Entry is either a National ID
+    # Registration or an Updating (change/correction) transaction; these
+    # columns only apply to the latter. Added via migration so existing
+    # databases created before Updating support pick them up too.
+    _ensure_column(db, "data_entries", "record_type", "TEXT NOT NULL DEFAULT 'National ID Registration'")
+    _ensure_column(db, "data_entries", "philid_ephilid_presented", "TEXT")
+    _ensure_column(db, "data_entries", "change_correction", "TEXT")
+    _ensure_column(db, "data_entries", "supporting_document", "TEXT")
+    _ensure_column(db, "data_entries", "fields_changed", "TEXT")
+    _ensure_column(db, "data_entries", "national_id_form_presented", "TEXT")
     db.execute(
         "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
         (

@@ -7,6 +7,13 @@ user is ready, it pushes their (not-yet-sent) Data Entry rows into the
 target spreadsheet -- e.g. the province's shared "TRN Daily Logsheet"
 Google Sheet -- so nothing needs to be retyped there by hand.
 
+Entries are split into a separate worksheet *tab* per Type of
+Registration (record_type) -- e.g. a "National ID Registration" tab and
+an "Updating" tab -- since the two record types capture very different
+fields. A tab is looked up by name (case-insensitive) and created
+automatically the first time that record type is sent, so nothing needs
+to be pre-configured for it in the target spreadsheet.
+
 The target spreadsheet is configured by an admin (Dashboard -> Report
 Settings -> "TRN Logsheet Google Sheet URL", stored as the
 `trn_logsheet_url` app setting) rather than hard-coded, since the sheet
@@ -20,7 +27,7 @@ recognized synonyms per field) rather than assuming a fixed column order.
 Any header cell that isn't recognized is simply left blank for our rows;
 any of our fields that aren't found in the header are appended as new
 columns at the end (never inserted in the middle -- see sheets_db.py for
-why that matters for a live sheet). A brand-new/blank sheet gets a
+why that matters for a live sheet). A brand-new/blank tab gets a
 sensible default header row written for it automatically.
 """
 
@@ -64,6 +71,11 @@ FIELD_HEADER_MAP: dict[str, tuple[str, list[str]]] = {
     "digital_id_issue_notes": ("Digital ID Issue Notes", ["digital id issue notes", "issues"]),
     "gov_ayuda_programs": ("Government Ayuda Programs", ["government ayuda programs", "ayuda"]),
     "authenticated_status": ("Authenticated", ["authenticated"]),
+    "philid_ephilid_presented": ("PhilID/ePhilID Presented?", ["philid ephilid presented", "philid or ephilid presented"]),
+    "change_correction": ("Change/Correction", ["change correction"]),
+    "supporting_document": ("Supporting Document", ["supporting document", "supporting documents"]),
+    "fields_changed": ("Fields to be Changed or corrected", ["fields to be changed or corrected", "fields changed"]),
+    "national_id_form_presented": ("National ID in Paper Form", ["national id in paper form", "form of national id presented"]),
 }
 
 
@@ -89,7 +101,7 @@ def _extract_gid(url: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _open_worksheet(sheet_url: str):
+def _open_worksheet(sheet_url: str, worksheet_title: str | None = None):
     client = sheets_db.get_authorized_client()
     sheet_id = _extract_sheet_id(sheet_url)
     try:
@@ -99,6 +111,17 @@ def _open_worksheet(sheet_url: str):
             "Couldn't open the configured TRN Logsheet. Make sure the sheet is shared "
             "with the app's service account as an Editor, and the URL is correct."
         ) from exc
+
+    if worksheet_title:
+        for worksheet in spreadsheet.worksheets():
+            if worksheet.title.strip().lower() == worksheet_title.strip().lower():
+                return worksheet
+        try:
+            return spreadsheet.add_worksheet(title=worksheet_title, rows=1000, cols=30)
+        except Exception as exc:  # noqa: BLE001 -- surfaced to the user as a flash message
+            raise ExportError(
+                f"Couldn't create a '{worksheet_title}' tab in the configured TRN Logsheet."
+            ) from exc
 
     gid = _extract_gid(sheet_url)
     if gid is not None:
@@ -157,9 +180,10 @@ def _entry_field_value(entry, field: str) -> str:
 
 def export_data_entries_to_sheet(entries: list, sheet_url: str) -> int:
     """Appends each entry as a new row in the configured Google Sheet,
-    matched to that sheet's own header columns. Returns the number of
-    rows written. Does not mark anything as sent -- callers should do
-    that only after this returns successfully."""
+    split into a separate tab per Type of Registration (record_type) and
+    matched to that tab's own header columns. Returns the total number of
+    rows written across all tabs. Does not mark anything as sent --
+    callers should do that only after this returns successfully."""
     if not sheet_url:
         raise ExportError(
             "No TRN Logsheet URL is configured yet. An administrator can set one "
@@ -168,16 +192,25 @@ def export_data_entries_to_sheet(entries: list, sheet_url: str) -> int:
     if not entries:
         return 0
 
-    worksheet = _open_worksheet(sheet_url)
-    header_row, field_to_col = _build_header_index(worksheet)
-    width = len(header_row)
-
-    rows = []
+    entries_by_type: dict[str, list] = {}
     for entry in entries:
-        row = [""] * width
-        for field, col in field_to_col.items():
-            row[col] = _entry_field_value(entry, field)
-        rows.append(row)
+        record_type = _entry_field_value(entry, "record_type") or "National ID Registration"
+        entries_by_type.setdefault(record_type, []).append(entry)
 
-    worksheet.append_rows(rows, value_input_option="RAW")
-    return len(rows)
+    total_written = 0
+    for record_type, group in entries_by_type.items():
+        worksheet = _open_worksheet(sheet_url, worksheet_title=record_type)
+        header_row, field_to_col = _build_header_index(worksheet)
+        width = len(header_row)
+
+        rows = []
+        for entry in group:
+            row = [""] * width
+            for field, col in field_to_col.items():
+                row[col] = _entry_field_value(entry, field)
+            rows.append(row)
+
+        worksheet.append_rows(rows, value_input_option="RAW")
+        total_written += len(rows)
+
+    return total_written

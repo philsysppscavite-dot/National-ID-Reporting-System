@@ -7,6 +7,7 @@ from typing import Iterable
 from werkzeug.security import generate_password_hash
 
 from . import sheets_db
+from .cavite_barangays import BARANGAYS_BY_CITY
 from .db import ROLE_ADMIN, ROLE_ISA, ROLE_USER, ROLES, get_db
 
 
@@ -47,16 +48,164 @@ SERVICE_TYPES = [
     "Recapture",
     "Rejected Packet",
     "Authentication and Issuance of National ID in Paper Form",
+    "Issuance of National ID in Paper Form and Assistance in Generating the Digital National ID",
+    "Recapture and Assistance in Generating the Digital National ID",
 ]
 
 # --- Data Entry (per-applicant registration log) -----------------------
 # A handful of these option lists are placeholders until the definitive
 # dropdown values are provided -- those fields are left as free-text
-# inputs on the form for now (Barangay, Specific Location, Type of RC,
-# Age Category, ePhilID Status, Government Ayuda Programs) so nothing is
-# guessed incorrectly. The lists below are the ones already spelled out
-# with fixed values.
+# inputs on the form for now (Barangay, Specific Location, Age Category,
+# ePhilID Status, Government Ayuda Programs) so nothing is guessed
+# incorrectly. The lists below are the ones already spelled out with
+# fixed values -- Type of RC and everything under RECORD_TYPE_UPDATING
+# come from the "Classification Guide and Dropdown" sheet of the TRN
+# Daily Logsheet.
 GENDER_OPTIONS = ["Male", "Female"]
+
+AGE_CATEGORY_OPTIONS = [
+    "0-4 years old",
+    "5 years old and above",
+]
+
+EPHILID_STATUS_OPTIONS = [
+    "Not Generated",
+    "Issued",
+    "Unclickable in DCS",
+    "Data Usage Expired",
+    "Digital Card Service under maintenance",
+    "Not yet issued",
+    "RINF",
+    "Available for Printing",
+]
+
+# A Data Entry is either a National ID Registration transaction or an
+# Updating (change/correction) transaction -- which fields apply differs
+# between the two, per the logsheet's own "Registration" vs "Updating"
+# column groupings.
+RECORD_TYPE_REGISTRATION = "National ID Registration"
+RECORD_TYPE_UPDATING = "Updating"
+RECORD_TYPE_OPTIONS = [RECORD_TYPE_REGISTRATION, RECORD_TYPE_UPDATING]
+
+TYPE_OF_RC_OPTIONS = [
+    "PSA-based",
+    "Mall-based",
+    "LGU-fixed",
+    "LGU Mobile",
+    "DSWD SWAD/CIU",
+    "DSWD Mobile",
+    "CRS colocation",
+    "DMW colocation",
+    "Airport colocation",
+    "Seaport colocation",
+    "Public Transport Terminal",
+    "Caravans",
+    "Bagong Pilipinas Serbisyo Fair",
+    "NHA People's Caravan",
+    "PhilSys on Wheels",
+    "DA mobile",
+    "NGA mobile",
+    "NGA colocation",
+    "Institutional Registration",
+    "School",
+    "Private Colocation",
+    "Social Security System",
+    "Government Service Insurance System",
+    "PhilHealth",
+    "Pag-IBIG",
+    "Comelec",
+    "PHILPost",
+    "DSWD FDS",
+    "Rehistro Bulilit",
+    "Hospital Colocation",
+    "PSA Statistical Activities",
+    "DOH Retained Hospitals",
+    "BSFI Colocation",
+    "DOLE TUPAD",
+    "Bagong Pilipinas eGovPH Serbisyo Hub",
+]
+
+# "Change/Correction" -- what kind of Updating transaction this is.
+CHANGE_CORRECTION_OPTIONS = [
+    "Change of Demographic information",
+    "Correction of Demographic information",
+    "TECO",
+]
+
+# "Fields to be Changed or corrected"
+FIELDS_CHANGED_OPTIONS = [
+    "First Name which includes Suffix and/or Middle Name",
+    "Last Name",
+    "Sex",
+    "Date of Birth",
+    "Place of Birth",
+    "Blood Type",
+    "Change of Entry on the item from \"Filipino\" to \"Resident Alien\"",
+    "Change of Entry on the item from \"Resident Alien\" to \"Filipino\" Citizen",
+    "Permanent/Present Address",
+    "Single to Married",
+    "Married to Single",
+    "Married to Annulled",
+    "Married to Divorced",
+    "Married to Widowed",
+    "Undisclosed to Single",
+    "Undisclosed to Married",
+    "Undisclosed to Widowed",
+    "Undisclosed to Divorced",
+    "Widowed to Single",
+    "Widowed to Married",
+    "Contact Number",
+    "Email Address",
+    "TECO",
+]
+
+# "Supporting Document" -- List of Identification and/or Supporting Documents
+SUPPORTING_DOCUMENT_OPTIONS = [
+    "Certificate of Live Birth issued by PSA/NSO/LCRO",
+    "Report of Birth issued by PSA/PFSP",
+    "Certificate of Live Birth of the mother issued by PSA/NSO/LCRO",
+    "Report of Birth of the mother issued by PSA/PFSP",
+    "Certificate of Live Birth of the parents issued by PSA/NSO/LCRO",
+    "Report of Birth of the parents issued by PSA/NSO/LCRO",
+    "Certificate of Marriage of the parents issued by PSA/NSO/LCRO",
+    "Report of Marriage of the parents issued by PSA/PFSP",
+    "Annotated Certificate of Live Birth or Report of Birth issued by PSA (in case of administrative or judicial correction of entry/ies)",
+    "Annotated Certificate of Live Birth or Report of Birth issued by PSA (due to RA No. 9255 and legitimation by the subsequent marriage of parents)",
+    "Amended Certificate of Live Birth issued by PSA (in case of Adoption pursuant to RA No. 11642) or NSO (Administrative Order No. 1 s. of 1993)",
+    "Certificate of Marriage issued by PSA/NSO/LCRO",
+    "Report of Marriage issued by PSA/NSO/PFSP",
+    "Certificate of Marriage issued Sharia District/Circuit",
+    "Annotated Certificate of Marriage or Report of Marriage issued by PSA/NSO",
+    "Certificate of Marriage (CEMAR) issued by PSA/NSO",
+    "Certificate of No Marriage (CENOMAR) issued by PSA/NSO",
+    "Alien Certificate of Recognition or ACR Identity Card",
+    "Sworn Certification of the Applicant stating the the aggregated days of stay in the Philippines is more than 180 days.",
+    "Valid Foreign Passport",
+    "Certificate of Retention or Reacquisition of Filipino Citizenship issued by the Bureau of Immigration (BI) or PFSP (for dual citizenship) pursuant to RA No. 9225",
+    "Certificate of Naturalization issued by the Special Committee on Naturalization through administrative naturalization pursuant to RA No. 9139",
+    "Certificate of Naturalization issued by the BI through legislative naturalization",
+    "Certificate of Naturalization issued by the BI through judicial naturalization pursuant to Commonwealth Act No. 473",
+    "Any supporting document showing that the registered person is a Filipino citizen",
+    "Blood typing result",
+    "Barangay Certificate or Barangay ID stating new address",
+    "Proof of billing (at least 3 months) w/ name of the registered person",
+    "Certificate of Death of the Spouse issued by PSA/NSO/LCRO",
+    "Report of Death of Spouse issued by PSA/NSO/PFSP",
+    "Annotated Certificate of Marriage issued by PSA/NSO (in case the absentee spouse is declared presumptively dead)",
+    "Any supporting document showing the marital status of the registered person",
+    "Any supporting document indicating the correct/updated entry of the permanent/present address",
+    "Any identification and/or supporting documents",
+    "None",
+    "TECO",
+]
+
+# "National ID in Paper Form" column on the logsheet -- i.e. Form of
+# National ID Presented for the Updating transaction.
+NATIONAL_ID_FORM_OPTIONS = [
+    "PhilID",
+    "National ID in Paper Form",
+    "Digital National ID",
+]
 
 DIGITAL_ID_ASSISTANCE_OPTIONS = [
     ("1", "1 - Assisted / Provided with Assistance"),
@@ -751,6 +900,9 @@ def list_data_entries(filters: dict | None = None) -> list:
     if filters.get("rko_employee_id"):
         sql += " AND d.rko_employee_id = ?"
         params.append(filters["rko_employee_id"])
+    if filters.get("record_type"):
+        sql += " AND d.record_type = ?"
+        params.append(filters["record_type"])
     if filters.get("start_date"):
         sql += " AND d.reporting_date >= ?"
         params.append(filters["start_date"])
@@ -805,12 +957,16 @@ def save_data_entry(
 
     rko_employee_id = payload.get("rko_employee_id") or None
 
+    record_type = (payload.get("record_type") or "").strip() or RECORD_TYPE_REGISTRATION
+    if record_type not in RECORD_TYPE_OPTIONS:
+        raise ValueError("Type of Registration must be Registration or Updating.")
+
     fields = (
         reporting_date,
         _upper_text(payload.get("city_municipality")),
         _upper_text(payload.get("barangay")),
         _title_text(payload.get("specific_location")),
-        _upper_text(payload.get("type_of_rc")),
+        (payload.get("type_of_rc") or "").strip(),
         int(rko_employee_id) if rko_employee_id else None,
         _title_text(payload.get("applicant_first_name")),
         _title_text(payload.get("applicant_middle_name")),
@@ -833,6 +989,12 @@ def save_data_entry(
         (payload.get("overseas_registrant") or "").strip(),
         (payload.get("gov_ayuda_programs") or "").strip(),
         (payload.get("authenticated_status") or "").strip(),
+        record_type,
+        (payload.get("philid_ephilid_presented") or "").strip(),
+        (payload.get("change_correction") or "").strip(),
+        (payload.get("supporting_document") or "").strip(),
+        (payload.get("fields_changed") or "").strip(),
+        (payload.get("national_id_form_presented") or "").strip(),
     )
     db = get_db()
     if entry_id is None:
@@ -844,8 +1006,10 @@ def save_data_entry(
              applicant_suffix, trn_or_pcn, age_category, service_availed, ephilid_status,
              ephilid_issued_date, digital_id_assistance, digital_id_generated, digital_id_issue_notes,
              dob_month, dob_day, dob_year, gender, old_trn, contact_number, overseas_registrant,
-             gov_ayuda_programs, authenticated_status, created_by_user_id, created_by_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             gov_ayuda_programs, authenticated_status, record_type, philid_ephilid_presented,
+             change_correction, supporting_document, fields_changed, national_id_form_presented,
+             created_by_user_id, created_by_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (*fields, created_by_user_id, created_by_name),
         )
@@ -859,7 +1023,9 @@ def save_data_entry(
             applicant_last_name=?, applicant_suffix=?, trn_or_pcn=?, age_category=?, service_availed=?,
             ephilid_status=?, ephilid_issued_date=?, digital_id_assistance=?, digital_id_generated=?,
             digital_id_issue_notes=?, dob_month=?, dob_day=?, dob_year=?, gender=?, old_trn=?,
-            contact_number=?, overseas_registrant=?, gov_ayuda_programs=?, authenticated_status=?
+            contact_number=?, overseas_registrant=?, gov_ayuda_programs=?, authenticated_status=?,
+            record_type=?, philid_ephilid_presented=?, change_correction=?, supporting_document=?,
+            fields_changed=?, national_id_form_presented=?
         WHERE id=?
         """,
         (*fields, entry_id),
