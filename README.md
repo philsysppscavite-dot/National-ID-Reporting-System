@@ -75,6 +75,28 @@ Generate a secret key with:
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
+## Data Entries: saved offline-first, synced to Google Sheets automatically
+
+Every Registration / Updating entry (the **Data Entry** page) is saved to
+the app's own local database the moment it's submitted — this always
+works, even if there's no internet or Google Sheets is temporarily
+unreachable, so nobody loses work.
+
+Separately, a background job checks every ~5 minutes for entries that
+haven't been sent to the configured **TRN Logsheet** Google Sheet yet, and
+sends them automatically once the app can reach Google again. There's also
+a **Send Report to Google Sheet** button on the Data Entry page if you want
+an entry sent immediately instead of waiting for the next automatic run.
+Each entry shows **Pending** until it's been sent, then **Sent**.
+
+The target sheet is set from **Dashboard → Report Settings → TRN Logsheet
+Google Sheet URL** (an admin can change it any time, no redeploy needed).
+It must be shared as **Editor** with the same service account email used
+for the Users/NidConcerns sheet (see `GOOGLE_SHEETS_SETUP.md`) — no
+additional Google Cloud Console setup or new Render environment variables
+are needed to point it at a different sheet.
+
+
 ## Deploying online
 
 See `DEPLOYMENT.md` for a step-by-step guide to putting this on Render

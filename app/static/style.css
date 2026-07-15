@@ -364,6 +364,26 @@ h4 {
   font-size: 0.72rem;
 }
 
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 6px;
+}
+
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.checkbox-option input {
+  width: auto;
+  flex-shrink: 0;
+}
+
 .locked-field-note {
   display: inline-flex;
   align-items: center;

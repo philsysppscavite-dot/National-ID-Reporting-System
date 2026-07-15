@@ -40,6 +40,36 @@ ALLOWED_REGISTRATION_EMAILS = {
     "jc.ponciano.psa@gmail.com",
 }
 
+# The province's roster of RKOs (Registration Kit Operators). Seeded into
+# the employees table on startup (idempotent -- only inserted if not
+# already present by name) so they show up in the "Name of RKO" dropdown
+# on the Data Entry form without an admin having to type each one in by
+# hand via the Employees page first.
+SEED_RKO_NAMES = [
+    "Lenard Kyle De Ocampo Francisco",
+    "Ronnel Ivan Ambata Casil",
+    "Christine Joy Gerpacio Alto",
+    "John Carlo Bendiano Ponciano",
+    "Claverson Belarmino Romuar",
+    "Romeo Domingo Gener",
+    "Richelle Pacifico Simpelo",
+    "Jenilyn Mengote Cañales",
+    "Jeffrey Kennedy Antonio Estoque",
+    "Leonard Borras Bondame",
+    "Jersell Lacorte Del Rosario",
+    "Raypert Varron Lawag",
+    "Lito Ramirez Grencio",
+    "Nesty Manzano Agellon",
+    "Marvin Jose Kingking",
+    "Jerico Ronio Masicap",
+    "Realyn Eludo Lisondra",
+    "Davee Ann Superio Irlandez",
+    "Niña Adelcel Magno Baurile",
+    "Jacqueline San Juan Avenido",
+    "Jomark Diaz Santos",
+    "Ruchie Ann Labrador Padilla",
+]
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS employees (
@@ -209,6 +239,8 @@ CREATE TABLE IF NOT EXISTS entry_defaults (
     rko_employee_id_locked INTEGER NOT NULL DEFAULT 0,
     reporting_date_mode TEXT NOT NULL DEFAULT 'blank',
     reporting_date_locked INTEGER NOT NULL DEFAULT 0,
+    values_json TEXT,
+    locked_json TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (rko_employee_id) REFERENCES employees (id) ON DELETE SET NULL
@@ -300,13 +332,37 @@ def init_db() -> None:
     _ensure_column(db, "data_entries", "supporting_document", "TEXT")
     _ensure_column(db, "data_entries", "fields_changed", "TEXT")
     _ensure_column(db, "data_entries", "national_id_form_presented", "TEXT")
+    _OLD_TRN_LOGSHEET_URL = (
+        "https://docs.google.com/spreadsheets/d/1_MjBiPft36kYqFI-23J3fMOdeihBeboDlNyHTB4FUYQ/edit?gid=2009676142#gid=2009676142"
+    )
+    _TRN_LOGSHEET_URL = (
+        "https://docs.google.com/spreadsheets/d/1iAENhYYFzsXLmSobvmk0OtPIC0_QPK0PHq7oUopPajA/edit"
+    )
     db.execute(
         "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
-        (
-            "trn_logsheet_url",
-            "https://docs.google.com/spreadsheets/d/1_MjBiPft36kYqFI-23J3fMOdeihBeboDlNyHTB4FUYQ/edit?gid=2009676142#gid=2009676142",
-        ),
+        ("trn_logsheet_url", _TRN_LOGSHEET_URL),
     )
+    # One-time migration: if an already-running install still has the old
+    # default (i.e. nobody ever changed it by hand from the Dashboard ->
+    # Report Settings page), move it over to the new sheet automatically.
+    # If someone did change it to a different sheet on purpose, that value
+    # is left alone.
+    db.execute(
+        "UPDATE app_settings SET value = ? WHERE key = 'trn_logsheet_url' AND value = ?",
+        (_TRN_LOGSHEET_URL, _OLD_TRN_LOGSHEET_URL),
+    )
+    _ensure_column(db, "entry_defaults", "values_json", "TEXT")
+    _ensure_column(db, "entry_defaults", "locked_json", "TEXT")
+    for full_name in SEED_RKO_NAMES:
+        db.execute(
+            """
+            INSERT INTO employees (full_name, active)
+            SELECT ?, 1 WHERE NOT EXISTS (
+                SELECT 1 FROM employees WHERE lower(full_name) = lower(?)
+            )
+            """,
+            (full_name, full_name),
+        )
     db.commit()
 
 

@@ -15,11 +15,32 @@
     <p>
       Set the values you want pre-filled every time you add a new Data Entry. Tick "Lock" on any
       field to have it auto-input and read-only on the form &mdash; only you decide which fields to lock,
-      and you can change this anytime. Locking never affects entries you're editing, only new ones.
+      and you can change this anytime. Every field on both the Registration and the Updating form can be
+      locked here, not just a few. Locking never affects entries you're editing, only new ones.
     </p>
   </div>
 
   <form method="post" class="grid-form" id="entryDefaultsForm">
+
+    <div class="form-section-title">Type of Registration</div>
+
+    <label class="full-row">Is this a National ID Registration or an Updating transaction?
+      {% set selected_record_type = default_values.get('record_type', '') %}
+      <select name="record_type" id="field-record_type">
+        <option value="">No default</option>
+        {% for option in record_type_options %}
+        <option value="{{ option }}" {% if selected_record_type == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="record_type_locked" id="lock-record_type" data-requires="field-record_type"
+               {% if 'record_type' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select a type first to enable locking.</p>
+    </label>
+
+    <div class="form-section-title">Registration Details</div>
 
     <label>Reporting Date
       <select name="reporting_date_mode" id="field-reporting_date_mode">
@@ -36,7 +57,7 @@
     </label>
 
     <label>City / Municipality
-      {% set selected_city = defaults['city_municipality'] if defaults else '' %}
+      {% set selected_city = default_values.get('city_municipality', '') %}
       <select name="city_municipality" id="field-city_municipality">
         <option value="">Select city / municipality</option>
         {% for city in city_municipalities %}
@@ -46,48 +67,54 @@
       <label class="field-lock">
         <input type="checkbox" name="city_municipality_locked" id="lock-city_municipality"
                data-requires="field-city_municipality"
-               {% if defaults and defaults['city_municipality_locked'] %}checked{% endif %}>
+               {% if 'city_municipality' in locked_fields %}checked{% endif %}>
         Lock (read-only on the form)
       </label>
       <p class="subtle field-lock-hint">Select a city / municipality first to enable locking.</p>
     </label>
 
     <label>Barangay
-      <input type="text" name="barangay" id="field-barangay" list="barangay-options" value="{{ defaults['barangay'] if defaults else '' }}" data-title-case>
+      <input type="text" name="barangay" id="field-barangay" list="barangay-options" value="{{ default_values.get('barangay', '') }}" data-title-case>
       <datalist id="barangay-options"></datalist>
       <label class="field-lock">
         <input type="checkbox" name="barangay_locked" id="lock-barangay"
                data-requires="field-barangay"
-               {% if defaults and defaults['barangay_locked'] %}checked{% endif %}>
+               {% if 'barangay' in locked_fields %}checked{% endif %}>
         Lock (read-only on the form)
       </label>
       <p class="subtle field-lock-hint">Enter a barangay first to enable locking.</p>
     </label>
 
     <label>Specific Location
-      <input type="text" name="specific_location" id="field-specific_location" value="{{ defaults['specific_location'] if defaults else '' }}" data-title-case>
+      <input type="text" name="specific_location" id="field-specific_location" value="{{ default_values.get('specific_location', '') }}" data-title-case>
       <label class="field-lock">
         <input type="checkbox" name="specific_location_locked" id="lock-specific_location"
                data-requires="field-specific_location"
-               {% if defaults and defaults['specific_location_locked'] %}checked{% endif %}>
+               {% if 'specific_location' in locked_fields %}checked{% endif %}>
         Lock (read-only on the form)
       </label>
       <p class="subtle field-lock-hint">Enter a specific location first to enable locking.</p>
     </label>
 
     <label>Type of RC
-      <input type="text" name="type_of_rc" id="field-type_of_rc" value="{{ defaults['type_of_rc'] if defaults else '' }}" placeholder="e.g. Fixed / Mobile / Pop-up">
+      {% set selected_rc = default_values.get('type_of_rc', '') %}
+      <select name="type_of_rc" id="field-type_of_rc">
+        <option value="">Select type of RC</option>
+        {% for option in type_of_rc_options %}
+        <option value="{{ option }}" {% if selected_rc == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
       <label class="field-lock">
         <input type="checkbox" name="type_of_rc_locked" id="lock-type_of_rc"
                data-requires="field-type_of_rc"
-               {% if defaults and defaults['type_of_rc_locked'] %}checked{% endif %}>
+               {% if 'type_of_rc' in locked_fields %}checked{% endif %}>
         Lock (read-only on the form)
       </label>
-      <p class="subtle field-lock-hint">Enter a type of RC first to enable locking.</p>
+      <p class="subtle field-lock-hint">Select a type of RC first to enable locking.</p>
     </label>
 
     <label>Name of RKO
-      {% set selected_rko = defaults['rko_employee_id'] if defaults else '' %}
+      {% set selected_rko = default_values.get('rko_employee_id', '') %}
       <select name="rko_employee_id" id="field-rko_employee_id">
         <option value="">Select RKO</option>
         {% for employee in employees %}
@@ -97,10 +124,360 @@
       <label class="field-lock">
         <input type="checkbox" name="rko_employee_id_locked" id="lock-rko_employee_id"
                data-requires="field-rko_employee_id"
-               {% if defaults and defaults['rko_employee_id_locked'] %}checked{% endif %}>
+               {% if 'rko_employee_id' in locked_fields %}checked{% endif %}>
         Lock (read-only on the form)
       </label>
       <p class="subtle field-lock-hint">Select the RKO first to enable locking.</p>
+    </label>
+
+    <div class="form-section-title">Applicant Information</div>
+
+    <label>First Name
+      <input type="text" name="applicant_first_name" id="field-applicant_first_name" value="{{ default_values.get('applicant_first_name', '') }}" data-title-case>
+      <label class="field-lock">
+        <input type="checkbox" name="applicant_first_name_locked" id="lock-applicant_first_name" data-requires="field-applicant_first_name" {% if 'applicant_first_name' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a first name first to enable locking.</p>
+    </label>
+
+    <label>Middle Name
+      <input type="text" name="applicant_middle_name" id="field-applicant_middle_name" value="{{ default_values.get('applicant_middle_name', '') }}" data-title-case>
+      <label class="field-lock">
+        <input type="checkbox" name="applicant_middle_name_locked" id="lock-applicant_middle_name" data-requires="field-applicant_middle_name" {% if 'applicant_middle_name' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a middle name first to enable locking.</p>
+    </label>
+
+    <label>Last Name
+      <input type="text" name="applicant_last_name" id="field-applicant_last_name" value="{{ default_values.get('applicant_last_name', '') }}" data-title-case>
+      <label class="field-lock">
+        <input type="checkbox" name="applicant_last_name_locked" id="lock-applicant_last_name" data-requires="field-applicant_last_name" {% if 'applicant_last_name' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a last name first to enable locking.</p>
+    </label>
+
+    <label>Suffix
+      <input type="text" name="applicant_suffix" id="field-applicant_suffix" value="{{ default_values.get('applicant_suffix', '') }}" placeholder="Jr., Sr., III, etc.">
+      <label class="field-lock">
+        <input type="checkbox" name="applicant_suffix_locked" id="lock-applicant_suffix" data-requires="field-applicant_suffix" {% if 'applicant_suffix' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a suffix first to enable locking.</p>
+    </label>
+
+    <label class="field-hint">Date of Birth - Month
+      {% set selected_month = default_values.get('dob_month', '') %}
+      <select name="dob_month" id="field-dob_month">
+        <option value="">Month</option>
+        {% for month in dob_month_options %}
+        <option value="{{ month }}" {% if selected_month == month %}selected{% endif %}>{{ month }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="dob_month_locked" id="lock-dob_month" data-requires="field-dob_month" {% if 'dob_month' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select a month first to enable locking.</p>
+    </label>
+
+    <label class="field-hint">Date of Birth - Day
+      {% set selected_day = default_values.get('dob_day', '') %}
+      <select name="dob_day" id="field-dob_day">
+        <option value="">Day</option>
+        {% for day in dob_day_options %}
+        <option value="{{ day }}" {% if selected_day|string == day|string %}selected{% endif %}>{{ day }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="dob_day_locked" id="lock-dob_day" data-requires="field-dob_day" {% if 'dob_day' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select a day first to enable locking.</p>
+    </label>
+
+    <label class="field-hint">Date of Birth - Year
+      {% set selected_year = default_values.get('dob_year', '') %}
+      <select name="dob_year" id="field-dob_year">
+        <option value="">Year</option>
+        {% for year in dob_year_options %}
+        <option value="{{ year }}" {% if selected_year|string == year|string %}selected{% endif %}>{{ year }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="dob_year_locked" id="lock-dob_year" data-requires="field-dob_year" {% if 'dob_year' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select a year first to enable locking.</p>
+    </label>
+
+    <label>Gender
+      {% set selected_gender = default_values.get('gender', '') %}
+      <select name="gender" id="field-gender">
+        <option value="">Select gender</option>
+        {% for option in gender_options %}
+        <option value="{{ option }}" {% if selected_gender == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="gender_locked" id="lock-gender" data-requires="field-gender" {% if 'gender' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select a gender first to enable locking.</p>
+    </label>
+
+    <label>Age Category
+      {% set selected_age_category = default_values.get('age_category', '') %}
+      <select name="age_category" id="field-age_category">
+        <option value="">Select age category</option>
+        {% for option in age_category_options %}
+        <option value="{{ option }}" {% if selected_age_category == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="age_category_locked" id="lock-age_category" data-requires="field-age_category" {% if 'age_category' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select an age category first to enable locking.</p>
+    </label>
+
+    <label>Contact Number of Applicant / Guardian / Parent
+      <input type="text" name="contact_number" id="field-contact_number" value="{{ default_values.get('contact_number', '') }}" placeholder="09171234567">
+      <label class="field-lock">
+        <input type="checkbox" name="contact_number_locked" id="lock-contact_number" data-requires="field-contact_number" {% if 'contact_number' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a contact number first to enable locking.</p>
+    </label>
+
+    <label>Overseas Registrant?
+      {% set selected_overseas = default_values.get('overseas_registrant', '') %}
+      <select name="overseas_registrant" id="field-overseas_registrant">
+        <option value="">Select</option>
+        {% for option in overseas_registrant_options %}
+        <option value="{{ option }}" {% if selected_overseas == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="overseas_registrant_locked" id="lock-overseas_registrant" data-requires="field-overseas_registrant" {% if 'overseas_registrant' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Make a selection first to enable locking.</p>
+    </label>
+
+    <div class="form-section-title">Transaction</div>
+
+    <label>Transaction Reference Number / National ID Card Number
+      <input type="text" name="trn_or_pcn" id="field-trn_or_pcn" value="{{ default_values.get('trn_or_pcn', '') }}">
+      <label class="field-lock">
+        <input type="checkbox" name="trn_or_pcn_locked" id="lock-trn_or_pcn" data-requires="field-trn_or_pcn" {% if 'trn_or_pcn' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a value first to enable locking. Only lock this if you truly process the same TRN/ID number on every entry.</p>
+    </label>
+
+    <label class="field-hint">For Recaptured Applicants - Old TRN (29 digits)
+      <input type="text" name="old_trn" id="field-old_trn" value="{{ default_values.get('old_trn', '') }}" pattern="\d{29}" maxlength="29" placeholder="29-digit number">
+      <label class="field-lock">
+        <input type="checkbox" name="old_trn_locked" id="lock-old_trn" data-requires="field-old_trn" {% if 'old_trn' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a value first to enable locking.</p>
+    </label>
+
+    <label>Services Availed
+      {% set selected_service = default_values.get('service_availed', '') %}
+      <select name="service_availed" id="field-service_availed">
+        <option value="">Select service availed</option>
+        {% for service in service_types %}
+        <option value="{{ service }}" {% if selected_service == service %}selected{% endif %}>{{ service }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="service_availed_locked" id="lock-service_availed" data-requires="field-service_availed" {% if 'service_availed' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select a service first to enable locking.</p>
+    </label>
+
+    <div class="form-section-title">Updating Details</div>
+
+    <label>PhilID/ePhilID Presented?
+      {% set selected_presented = default_values.get('philid_ephilid_presented', '') %}
+      <select name="philid_ephilid_presented" id="field-philid_ephilid_presented">
+        <option value="">Select</option>
+        {% for option in yes_no_options %}
+        <option value="{{ option }}" {% if selected_presented == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="philid_ephilid_presented_locked" id="lock-philid_ephilid_presented" data-requires="field-philid_ephilid_presented" {% if 'philid_ephilid_presented' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Make a selection first to enable locking.</p>
+    </label>
+
+    <label>Change/Correction
+      {% set selected_change = default_values.get('change_correction', '') %}
+      <select name="change_correction" id="field-change_correction">
+        <option value="">Select</option>
+        {% for option in change_correction_options %}
+        <option value="{{ option }}" {% if selected_change == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="change_correction_locked" id="lock-change_correction" data-requires="field-change_correction" {% if 'change_correction' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Make a selection first to enable locking.</p>
+    </label>
+
+    <label>Fields to be Changed or corrected
+      {% set selected_fields_changed = default_values.get('fields_changed', '') %}
+      <select name="fields_changed" id="field-fields_changed">
+        <option value="">Select</option>
+        {% for option in fields_changed_options %}
+        <option value="{{ option }}" {% if selected_fields_changed == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="fields_changed_locked" id="lock-fields_changed" data-requires="field-fields_changed" {% if 'fields_changed' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Make a selection first to enable locking.</p>
+    </label>
+
+    <label class="full-row">Supporting Document
+      {% set selected_doc = default_values.get('supporting_document', '') %}
+      <select name="supporting_document" id="field-supporting_document">
+        <option value="">Select</option>
+        {% for option in supporting_document_options %}
+        <option value="{{ option }}" {% if selected_doc == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="supporting_document_locked" id="lock-supporting_document" data-requires="field-supporting_document" {% if 'supporting_document' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Make a selection first to enable locking.</p>
+    </label>
+
+    <label>National ID in Paper Form
+      {% set selected_form = default_values.get('national_id_form_presented', '') %}
+      <select name="national_id_form_presented" id="field-national_id_form_presented">
+        <option value="">Select</option>
+        {% for option in national_id_form_options %}
+        <option value="{{ option }}" {% if selected_form == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="national_id_form_presented_locked" id="lock-national_id_form_presented" data-requires="field-national_id_form_presented" {% if 'national_id_form_presented' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Make a selection first to enable locking.</p>
+    </label>
+
+    <div class="form-section-title">ePhilID</div>
+
+    <label>ePhilID Status
+      {% set selected_ephilid_status = default_values.get('ephilid_status', '') %}
+      <select name="ephilid_status" id="field-ephilid_status">
+        <option value="">Select ePhilID status</option>
+        {% for option in ephilid_status_options %}
+        <option value="{{ option }}" {% if selected_ephilid_status == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="ephilid_status_locked" id="lock-ephilid_status" data-requires="field-ephilid_status" {% if 'ephilid_status' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select a status first to enable locking.</p>
+    </label>
+
+    <label>ePhilID Issued Date
+      <input type="date" name="ephilid_issued_date" id="field-ephilid_issued_date" value="{{ default_values.get('ephilid_issued_date', '') }}">
+      <label class="field-lock">
+        <input type="checkbox" name="ephilid_issued_date_locked" id="lock-ephilid_issued_date" data-requires="field-ephilid_issued_date" {% if 'ephilid_issued_date' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Pick a date first to enable locking. Only lock this if the date is genuinely the same on every entry.</p>
+    </label>
+
+    <div class="form-section-title">Assistance to Generation of Digital National ID</div>
+
+    <label>Assistance Given
+      {% set selected_assist = default_values.get('digital_id_assistance', '') %}
+      <select name="digital_id_assistance" id="field-digital_id_assistance">
+        <option value="">Select</option>
+        {% for value, label in digital_id_assistance_options %}
+        <option value="{{ value }}" {% if selected_assist == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="digital_id_assistance_locked" id="lock-digital_id_assistance" data-requires="field-digital_id_assistance" {% if 'digital_id_assistance' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Make a selection first to enable locking.</p>
+    </label>
+
+    <label>Successfully Generated?
+      {% set selected_generated = default_values.get('digital_id_generated', '') %}
+      <select name="digital_id_generated" id="field-digital_id_generated">
+        <option value="">Select</option>
+        {% for option in yes_no_options %}
+        <option value="{{ option }}" {% if selected_generated == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="digital_id_generated_locked" id="lock-digital_id_generated" data-requires="field-digital_id_generated" {% if 'digital_id_generated' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Make a selection first to enable locking.</p>
+    </label>
+
+    <label class="full-row">If generation is unsuccessful, indicate issues
+      <textarea name="digital_id_issue_notes" id="field-digital_id_issue_notes" rows="2">{{ default_values.get('digital_id_issue_notes', '') }}</textarea>
+      <label class="field-lock">
+        <input type="checkbox" name="digital_id_issue_notes_locked" id="lock-digital_id_issue_notes" data-requires="field-digital_id_issue_notes" {% if 'digital_id_issue_notes' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a note first to enable locking.</p>
+    </label>
+
+    <div class="form-section-title">Other</div>
+
+    <label class="full-row">Government Ayuda Programs
+      {% set selected_ayuda = default_values.get('gov_ayuda_programs', '').split(',') | map('trim') | list %}
+      <span class="checkbox-group" id="field-gov_ayuda_programs">
+        {% for option in gov_ayuda_program_options %}
+        <label class="checkbox-option">
+          <input type="checkbox" name="gov_ayuda_programs" value="{{ option }}" {% if option in selected_ayuda %}checked{% endif %}>
+          {{ option }}
+        </label>
+        {% endfor %}
+      </span>
+      <label class="field-lock">
+        <input type="checkbox" name="gov_ayuda_programs_locked" id="lock-gov_ayuda_programs" data-requires-group="field-gov_ayuda_programs" {% if 'gov_ayuda_programs' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Tick at least one program first to enable locking.</p>
+    </label>
+
+    <label>Authenticated
+      {% set selected_auth = default_values.get('authenticated_status', '') %}
+      <select name="authenticated_status" id="field-authenticated_status">
+        <option value="">Not applicable</option>
+        {% for option in authenticated_options %}
+        <option value="{{ option }}" {% if selected_auth == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="authenticated_status_locked" id="lock-authenticated_status" data-requires="field-authenticated_status" {% if 'authenticated_status' in locked_fields %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Make a selection first to enable locking.</p>
     </label>
 
     <div class="full-row">
@@ -132,32 +509,48 @@
   (function () {
     var form = document.getElementById("entryDefaultsForm");
     if (!form) { return; }
-    var lockBoxes = Array.prototype.slice.call(form.querySelectorAll("[data-requires]"));
 
     function hasValue(el) {
       return !!(el && el.value && el.value.trim());
     }
 
+    function refreshHint(lockBox, satisfied) {
+      var wrapper = lockBox.closest("label");
+      var hint = wrapper ? wrapper.parentElement.querySelector(".field-lock-hint") : null;
+      lockBox.disabled = !satisfied;
+      if (!satisfied) { lockBox.checked = false; }
+      if (hint) { hint.style.display = satisfied ? "none" : "block"; }
+    }
+
+    // Plain fields: one source element referenced by id.
+    var lockBoxes = Array.prototype.slice.call(form.querySelectorAll("[data-requires]"));
     function refreshLock(lockBox) {
       var sourceEl = document.getElementById(lockBox.dataset.requires);
       var requiredValue = lockBox.dataset.requiresValue;
       var satisfied = requiredValue ? (sourceEl && sourceEl.value === requiredValue) : hasValue(sourceEl);
-      var hint = lockBox.closest("label").parentElement.querySelector(".field-lock-hint");
-      lockBox.disabled = !satisfied;
-      if (!satisfied) {
-        lockBox.checked = false;
-      }
-      if (hint) {
-        hint.style.display = satisfied ? "none" : "block";
-      }
+      refreshHint(lockBox, satisfied);
     }
-
     lockBoxes.forEach(function (lockBox) {
       var sourceEl = document.getElementById(lockBox.dataset.requires);
       if (!sourceEl) { return; }
       refreshLock(lockBox);
       sourceEl.addEventListener("input", function () { refreshLock(lockBox); });
       sourceEl.addEventListener("change", function () { refreshLock(lockBox); });
+    });
+
+    // Checkbox-group fields (Government Ayuda Programs): satisfied once any
+    // checkbox in the group is ticked.
+    var groupLockBoxes = Array.prototype.slice.call(form.querySelectorAll("[data-requires-group]"));
+    groupLockBoxes.forEach(function (lockBox) {
+      var groupEl = document.getElementById(lockBox.dataset.requiresGroup);
+      if (!groupEl) { return; }
+      var checkboxes = Array.prototype.slice.call(groupEl.querySelectorAll('input[type="checkbox"]'));
+      function refreshGroupLock() {
+        var satisfied = checkboxes.some(function (cb) { return cb.checked; });
+        refreshHint(lockBox, satisfied);
+      }
+      refreshGroupLock();
+      checkboxes.forEach(function (cb) { cb.addEventListener("change", refreshGroupLock); });
     });
   })();
 </script>

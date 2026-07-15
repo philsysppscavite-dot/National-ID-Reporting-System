@@ -15,12 +15,14 @@
     <div class="form-section-title">Type of Registration</div>
 
     <label class="full-row">Is this a National ID Registration or an Updating transaction?
-      {% set selected_record_type = entry['record_type'] if entry and entry['record_type'] else record_type_registration %}
-      <select name="record_type" id="field-record_type">
+      {% set locked = 'record_type' in locked_fields %}
+      {% set selected_record_type = entry['record_type'] if entry and entry['record_type'] else default_values.get('record_type', record_type_registration) %}
+      <select name="record_type" id="field-record_type" {% if locked %}disabled{% endif %}>
         {% for option in record_type_options %}
         <option value="{{ option }}" {% if selected_record_type == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <div class="form-section-title">Registration Details</div>
@@ -93,52 +95,81 @@
     <div class="form-section-title">Applicant Information</div>
 
     <label>First Name
-      <input type="text" name="applicant_first_name" value="{{ entry['applicant_first_name'] if entry else '' }}" data-title-case required>
+      {% set locked = 'applicant_first_name' in locked_fields %}
+      <input type="text" name="applicant_first_name" value="{{ entry['applicant_first_name'] if entry else default_values.get('applicant_first_name', '') }}" data-title-case required {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label>Middle Name
-      <input type="text" name="applicant_middle_name" value="{{ entry['applicant_middle_name'] if entry else '' }}" data-title-case>
+      {% set locked = 'applicant_middle_name' in locked_fields %}
+      <input type="text" name="applicant_middle_name" value="{{ entry['applicant_middle_name'] if entry else default_values.get('applicant_middle_name', '') }}" data-title-case {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label>Last Name
-      <input type="text" name="applicant_last_name" value="{{ entry['applicant_last_name'] if entry else '' }}" data-title-case required>
+      {% set locked = 'applicant_last_name' in locked_fields %}
+      <input type="text" name="applicant_last_name" value="{{ entry['applicant_last_name'] if entry else default_values.get('applicant_last_name', '') }}" data-title-case required {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label>Suffix
-      <input type="text" name="applicant_suffix" value="{{ entry['applicant_suffix'] if entry else '' }}" placeholder="Jr., Sr., III, etc.">
+      {% set locked = 'applicant_suffix' in locked_fields %}
+      <input type="text" name="applicant_suffix" value="{{ entry['applicant_suffix'] if entry else default_values.get('applicant_suffix', '') }}" placeholder="Jr., Sr., III, etc." {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="field-hint reg-only">Date of Birth - Month
-      {% set selected_month = entry['dob_month'] if entry else '' %}
-      <select name="dob_month">
+      {% set locked = 'dob_month' in locked_fields %}
+      {% set selected_month = entry['dob_month'] if entry else default_values.get('dob_month', '') %}
+      <select name="dob_month" {% if locked %}disabled{% endif %}>
         <option value="">Month</option>
         {% for month in dob_month_options %}
         <option value="{{ month }}" {% if selected_month == month %}selected{% endif %}>{{ month }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="field-hint reg-only">Date of Birth - Day
-      <input type="number" name="dob_day" min="1" max="31" value="{{ entry['dob_day'] if entry else '' }}" placeholder="e.g. 08">
+      {% set locked = 'dob_day' in locked_fields %}
+      {% set selected_day = entry['dob_day'] if entry else default_values.get('dob_day', '') %}
+      <select name="dob_day" {% if locked %}disabled{% endif %}>
+        <option value="">Day</option>
+        {% for day in dob_day_options %}
+        <option value="{{ day }}" {% if selected_day|string == day|string %}selected{% endif %}>{{ day }}</option>
+        {% endfor %}
+      </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="field-hint reg-only">Date of Birth - Year
-      <input type="number" name="dob_year" min="1900" max="2100" value="{{ entry['dob_year'] if entry else '' }}" placeholder="e.g. 1993">
+      {% set locked = 'dob_year' in locked_fields %}
+      {% set selected_year = entry['dob_year'] if entry else default_values.get('dob_year', '') %}
+      <select name="dob_year" {% if locked %}disabled{% endif %}>
+        <option value="">Year</option>
+        {% for year in dob_year_options %}
+        <option value="{{ year }}" {% if selected_year|string == year|string %}selected{% endif %}>{{ year }}</option>
+        {% endfor %}
+      </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="reg-only">Gender
-      {% set selected_gender = entry['gender'] if entry else '' %}
-      <select name="gender">
+      {% set locked = 'gender' in locked_fields %}
+      {% set selected_gender = entry['gender'] if entry else default_values.get('gender', '') %}
+      <select name="gender" {% if locked %}disabled{% endif %}>
         <option value="">Select gender</option>
         {% for option in gender_options %}
         <option value="{{ option }}" {% if selected_gender == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="reg-only">Age Category
-      {% set selected_age_category = entry['age_category'] if entry else '' %}
-      <select name="age_category">
+      {% set locked = 'age_category' in locked_fields %}
+      {% set selected_age_category = entry['age_category'] if entry else default_values.get('age_category', '') %}
+      <select name="age_category" {% if locked %}disabled{% endif %}>
         <option value="">Select age category</option>
         {% for option in age_category_options %}
         <option value="{{ option }}" {% if selected_age_category == option %}selected{% endif %}>{{ option }}</option>
@@ -147,99 +178,121 @@
         <option value="{{ selected_age_category }}" selected>{{ selected_age_category }}</option>
         {% endif %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="reg-only">Contact Number of Applicant / Guardian / Parent
-      <input type="text" name="contact_number" value="{{ entry['contact_number'] if entry else '' }}" placeholder="09171234567">
+      {% set locked = 'contact_number' in locked_fields %}
+      <input type="text" name="contact_number" value="{{ entry['contact_number'] if entry else default_values.get('contact_number', '') }}" placeholder="09171234567" {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="reg-only">Overseas Registrant?
-      {% set selected_overseas = entry['overseas_registrant'] if entry else '' %}
-      <select name="overseas_registrant">
+      {% set locked = 'overseas_registrant' in locked_fields %}
+      {% set selected_overseas = entry['overseas_registrant'] if entry else default_values.get('overseas_registrant', '') %}
+      <select name="overseas_registrant" {% if locked %}disabled{% endif %}>
         <option value="">Select</option>
         {% for option in overseas_registrant_options %}
         <option value="{{ option }}" {% if selected_overseas == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <div class="form-section-title">Transaction</div>
 
     <label>Transaction Reference Number / National ID Card Number
-      <input type="text" name="trn_or_pcn" value="{{ entry['trn_or_pcn'] if entry else '' }}">
+      {% set locked = 'trn_or_pcn' in locked_fields %}
+      <input type="text" name="trn_or_pcn" value="{{ entry['trn_or_pcn'] if entry else default_values.get('trn_or_pcn', '') }}" {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="field-hint reg-only">For Recaptured Applicants - Old TRN (29 digits)
-      <input type="text" name="old_trn" value="{{ entry['old_trn'] if entry else '' }}" pattern="\d{29}" maxlength="29" placeholder="29-digit number">
+      {% set locked = 'old_trn' in locked_fields %}
+      <input type="text" name="old_trn" value="{{ entry['old_trn'] if entry else default_values.get('old_trn', '') }}" pattern="\d{29}" maxlength="29" placeholder="29-digit number" {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label>Services Availed
-      {% set selected_service = entry['service_availed'] if entry else '' %}
-      <select name="service_availed">
+      {% set locked = 'service_availed' in locked_fields %}
+      {% set selected_service = entry['service_availed'] if entry else default_values.get('service_availed', '') %}
+      <select name="service_availed" {% if locked %}disabled{% endif %}>
         <option value="">Select service availed</option>
         {% for service in service_types %}
         <option value="{{ service }}" {% if selected_service == service %}selected{% endif %}>{{ service }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <div class="form-section-title upd-only">Updating Details</div>
 
     <label class="upd-only">PhilID/ePhilID Presented?
-      {% set selected_presented = entry['philid_ephilid_presented'] if entry else '' %}
-      <select name="philid_ephilid_presented">
+      {% set locked = 'philid_ephilid_presented' in locked_fields %}
+      {% set selected_presented = entry['philid_ephilid_presented'] if entry else default_values.get('philid_ephilid_presented', '') %}
+      <select name="philid_ephilid_presented" {% if locked %}disabled{% endif %}>
         <option value="">Select</option>
         {% for option in yes_no_options %}
         <option value="{{ option }}" {% if selected_presented == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="upd-only">Change/Correction
-      {% set selected_change = entry['change_correction'] if entry else '' %}
-      <select name="change_correction">
+      {% set locked = 'change_correction' in locked_fields %}
+      {% set selected_change = entry['change_correction'] if entry else default_values.get('change_correction', '') %}
+      <select name="change_correction" {% if locked %}disabled{% endif %}>
         <option value="">Select</option>
         {% for option in change_correction_options %}
         <option value="{{ option }}" {% if selected_change == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="upd-only">Fields to be Changed or corrected
-      {% set selected_fields_changed = entry['fields_changed'] if entry else '' %}
-      <select name="fields_changed">
+      {% set locked = 'fields_changed' in locked_fields %}
+      {% set selected_fields_changed = entry['fields_changed'] if entry else default_values.get('fields_changed', '') %}
+      <select name="fields_changed" {% if locked %}disabled{% endif %}>
         <option value="">Select</option>
         {% for option in fields_changed_options %}
         <option value="{{ option }}" {% if selected_fields_changed == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="upd-only full-row">Supporting Document
-      {% set selected_doc = entry['supporting_document'] if entry else '' %}
-      <select name="supporting_document">
+      {% set locked = 'supporting_document' in locked_fields %}
+      {% set selected_doc = entry['supporting_document'] if entry else default_values.get('supporting_document', '') %}
+      <select name="supporting_document" {% if locked %}disabled{% endif %}>
         <option value="">Select</option>
         {% for option in supporting_document_options %}
         <option value="{{ option }}" {% if selected_doc == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="upd-only">National ID in Paper Form
-      {% set selected_form = entry['national_id_form_presented'] if entry else '' %}
-      <select name="national_id_form_presented">
+      {% set locked = 'national_id_form_presented' in locked_fields %}
+      {% set selected_form = entry['national_id_form_presented'] if entry else default_values.get('national_id_form_presented', '') %}
+      <select name="national_id_form_presented" {% if locked %}disabled{% endif %}>
         <option value="">Select</option>
         {% for option in national_id_form_options %}
         <option value="{{ option }}" {% if selected_form == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <div class="form-section-title reg-only">ePhilID</div>
 
     <label class="reg-only">ePhilID Status
-      {% set selected_ephilid_status = entry['ephilid_status'] if entry else '' %}
-      <select name="ephilid_status">
+      {% set locked = 'ephilid_status' in locked_fields %}
+      {% set selected_ephilid_status = entry['ephilid_status'] if entry else default_values.get('ephilid_status', '') %}
+      <select name="ephilid_status" {% if locked %}disabled{% endif %}>
         <option value="">Select ePhilID status</option>
         {% for option in ephilid_status_options %}
         <option value="{{ option }}" {% if selected_ephilid_status == option %}selected{% endif %}>{{ option }}</option>
@@ -248,52 +301,74 @@
         <option value="{{ selected_ephilid_status }}" selected>{{ selected_ephilid_status }}</option>
         {% endif %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="reg-only">ePhilID Issued Date
-      <input type="date" name="ephilid_issued_date" value="{{ entry['ephilid_issued_date'] if entry else '' }}">
+      {% set locked = 'ephilid_issued_date' in locked_fields %}
+      <input type="date" name="ephilid_issued_date" value="{{ entry['ephilid_issued_date'] if entry else default_values.get('ephilid_issued_date', '') }}" {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <div class="form-section-title reg-only">Assistance to Generation of Digital National ID</div>
 
     <label class="reg-only">Assistance Given
-      {% set selected_assist = entry['digital_id_assistance'] if entry else '' %}
-      <select name="digital_id_assistance">
+      {% set locked = 'digital_id_assistance' in locked_fields %}
+      {% set selected_assist = entry['digital_id_assistance'] if entry else default_values.get('digital_id_assistance', '') %}
+      <select name="digital_id_assistance" {% if locked %}disabled{% endif %}>
         <option value="">Select</option>
         {% for value, label in digital_id_assistance_options %}
         <option value="{{ value }}" {% if selected_assist == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="reg-only">Successfully Generated?
-      {% set selected_generated = entry['digital_id_generated'] if entry else '' %}
-      <select name="digital_id_generated">
+      {% set locked = 'digital_id_generated' in locked_fields %}
+      {% set selected_generated = entry['digital_id_generated'] if entry else default_values.get('digital_id_generated', '') %}
+      <select name="digital_id_generated" {% if locked %}disabled{% endif %}>
         <option value="">Select</option>
         {% for option in yes_no_options %}
         <option value="{{ option }}" {% if selected_generated == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="full-row reg-only">If generation is unsuccessful, indicate issues
-      <textarea name="digital_id_issue_notes" rows="2">{{ entry['digital_id_issue_notes'] if entry else '' }}</textarea>
+      {% set locked = 'digital_id_issue_notes' in locked_fields %}
+      <textarea name="digital_id_issue_notes" rows="2" {% if locked %}readonly{% endif %}>{{ entry['digital_id_issue_notes'] if entry else default_values.get('digital_id_issue_notes', '') }}</textarea>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <div class="form-section-title reg-only">Other</div>
 
-    <label class="reg-only">Government Ayuda Programs
-      <input type="text" name="gov_ayuda_programs" value="{{ entry['gov_ayuda_programs'] if entry else '' }}">
+    <label class="full-row reg-only">Government Ayuda Programs
+      {% set locked = 'gov_ayuda_programs' in locked_fields %}
+      {% set ayuda_source = entry['gov_ayuda_programs'] if entry else default_values.get('gov_ayuda_programs', '') %}
+      {% set selected_ayuda = ayuda_source.split(',') | map('trim') | list %}
+      <span class="checkbox-group">
+        {% for option in gov_ayuda_program_options %}
+        <label class="checkbox-option">
+          <input type="checkbox" name="gov_ayuda_programs" value="{{ option }}" {% if option in selected_ayuda %}checked{% endif %} {% if locked %}disabled{% endif %}>
+          {{ option }}
+        </label>
+        {% endfor %}
+      </span>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <label class="reg-only">Authenticated
-      {% set selected_auth = entry['authenticated_status'] if entry else '' %}
-      <select name="authenticated_status">
+      {% set locked = 'authenticated_status' in locked_fields %}
+      {% set selected_auth = entry['authenticated_status'] if entry else default_values.get('authenticated_status', '') %}
+      <select name="authenticated_status" {% if locked %}disabled{% endif %}>
         <option value="">Not applicable</option>
         {% for option in authenticated_options %}
         <option value="{{ option }}" {% if selected_auth == option %}selected{% endif %}>{{ option }}</option>
         {% endfor %}
       </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
     </label>
 
     <div class="full-row">

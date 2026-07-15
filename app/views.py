@@ -27,6 +27,9 @@ from .repository import (
     OVERSEAS_REGISTRANT_OPTIONS,
     AUTHENTICATED_OPTIONS,
     DOB_MONTH_OPTIONS,
+    DOB_DAY_OPTIONS,
+    DOB_YEAR_OPTIONS,
+    GOV_AYUDA_PROGRAM_OPTIONS,
     RECORD_TYPE_OPTIONS,
     RECORD_TYPE_REGISTRATION,
     TYPE_OF_RC_OPTIONS,
@@ -561,6 +564,7 @@ def register_routes(app):
         if request.method == "POST":
             try:
                 form_data = request.form.to_dict()
+                form_data["gov_ayuda_programs"] = ", ".join(request.form.getlist("gov_ayuda_programs"))
                 # A locked field is only ever a convenience for the user who
                 # locked it -- enforce the saved default server-side so a
                 # disabled/read-only field can never be overridden by a
@@ -592,6 +596,9 @@ def register_routes(app):
             overseas_registrant_options=OVERSEAS_REGISTRANT_OPTIONS,
             authenticated_options=AUTHENTICATED_OPTIONS,
             dob_month_options=DOB_MONTH_OPTIONS,
+            dob_day_options=DOB_DAY_OPTIONS,
+            dob_year_options=DOB_YEAR_OPTIONS,
+            gov_ayuda_program_options=GOV_AYUDA_PROGRAM_OPTIONS,
             service_types=SERVICE_TYPES,
             record_type_options=RECORD_TYPE_OPTIONS,
             record_type_registration=RECORD_TYPE_REGISTRATION,
@@ -613,15 +620,39 @@ def register_routes(app):
         user_id = current_user_id()
         if request.method == "POST":
             try:
-                save_entry_defaults(user_id, request.form)
+                form_data = request.form.to_dict()
+                form_data["gov_ayuda_programs"] = ", ".join(request.form.getlist("gov_ayuda_programs"))
+                save_entry_defaults(user_id, form_data)
                 flash("Your entry defaults were saved.", "success")
                 return redirect(url_for("entry_defaults_form"))
             except ValueError as exc:
                 flash(str(exc), "error")
+        default_values, locked_fields = resolve_entry_defaults_for_form(user_id)
         return render_template(
             "entry_defaults_form.html",
             defaults=get_entry_defaults(user_id),
+            default_values=default_values,
+            locked_fields=locked_fields,
             employees=list_employees(),
+            city_municipalities=CITY_MUNICIPALITIES,
+            gender_options=GENDER_OPTIONS,
+            age_category_options=AGE_CATEGORY_OPTIONS,
+            ephilid_status_options=EPHILID_STATUS_OPTIONS,
+            digital_id_assistance_options=DIGITAL_ID_ASSISTANCE_OPTIONS,
+            yes_no_options=YES_NO_OPTIONS,
+            overseas_registrant_options=OVERSEAS_REGISTRANT_OPTIONS,
+            authenticated_options=AUTHENTICATED_OPTIONS,
+            dob_month_options=DOB_MONTH_OPTIONS,
+            dob_day_options=DOB_DAY_OPTIONS,
+            dob_year_options=DOB_YEAR_OPTIONS,
+            gov_ayuda_program_options=GOV_AYUDA_PROGRAM_OPTIONS,
+            service_types=SERVICE_TYPES,
+            record_type_options=RECORD_TYPE_OPTIONS,
+            type_of_rc_options=TYPE_OF_RC_OPTIONS,
+            change_correction_options=CHANGE_CORRECTION_OPTIONS,
+            fields_changed_options=FIELDS_CHANGED_OPTIONS,
+            supporting_document_options=SUPPORTING_DOCUMENT_OPTIONS,
+            national_id_form_options=NATIONAL_ID_FORM_OPTIONS,
         )
 
     @app.post("/data-entries/send-to-sheet")

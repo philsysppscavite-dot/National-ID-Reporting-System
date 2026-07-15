@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime, timedelta
 from typing import Iterable
@@ -223,6 +224,26 @@ AUTHENTICATED_OPTIONS = ["Yes Match", "No Match"]
 DOB_MONTH_OPTIONS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
+]
+
+DOB_DAY_OPTIONS = [str(day) for day in range(1, 32)]
+
+# Year range for the Date of Birth dropdown -- from the current year down
+# to 120 years ago, newest first, so it covers everyone from a newborn
+# (0-4 years old age category) to the oldest registrants.
+DOB_YEAR_OPTIONS = [str(year) for year in range(datetime.now().year, datetime.now().year - 120, -1)]
+
+# "Government Ayuda Programs" -- a registrant can be enrolled in more than
+# one, so this is presented as a multi-select (checkboxes) on the form and
+# stored as a comma-separated list in the single gov_ayuda_programs column.
+GOV_AYUDA_PROGRAM_OPTIONS = [
+    "4Ps",
+    "AKAP",
+    "Walang Gutom",
+    "Pag-abot",
+    "SocPen",
+    "AICS",
+    "N/A",
 ]
 
 
@@ -1058,18 +1079,94 @@ def mark_data_entries_sent_to_sheet(entry_ids: Iterable[int]) -> None:
 # ---------------------------------------------------------------------------
 # Entry Defaults -- per-user auto-lock defaults for the Data Entry form.
 # Each RKO/user can pre-fill and optionally lock (read-only, auto-input)
-# specific fields for themselves -- e.g. their own name as RKO, today's
-# date, their usual city/barangay -- so they don't have to retype the
-# same values on every entry. Locking is entirely up to the user.
+# any field on the Data Entry form for themselves -- e.g. their own name as
+# RKO, today's date, their usual city/barangay, a Service Availed they
+# almost always pick, etc. Locking is entirely up to the user, and every
+# field that appears on either the Registration or the Updating form can be
+# locked -- not just a fixed subset.
+#
+# Storage: rather than one pair of SQL columns per lockable field (which
+# would mean 60+ columns and a migration every time a new Data Entry field
+# is added), values and locked-state are kept as two JSON blobs on a single
+# row per user: values_json ({"field": "value", ...}) and locked_json
+# (["field", ...]). reporting_date is handled separately (mode-based:
+# "blank" or "today") since it can't be locked to a fixed date.
 # ---------------------------------------------------------------------------
 
+# Every Data Entry field that can be given a default/lock, in the order
+# they should appear on the "My Entry Defaults" page. record_type and
+# reporting_date are handled separately (see below) and aren't in this list.
 ENTRY_DEFAULT_FIELDS = (
     "city_municipality",
     "barangay",
     "specific_location",
     "type_of_rc",
     "rko_employee_id",
+    "applicant_first_name",
+    "applicant_middle_name",
+    "applicant_last_name",
+    "applicant_suffix",
+    "dob_month",
+    "dob_day",
+    "dob_year",
+    "gender",
+    "age_category",
+    "contact_number",
+    "overseas_registrant",
+    "trn_or_pcn",
+    "old_trn",
+    "service_availed",
+    "philid_ephilid_presented",
+    "change_correction",
+    "fields_changed",
+    "supporting_document",
+    "national_id_form_presented",
+    "ephilid_status",
+    "ephilid_issued_date",
+    "digital_id_assistance",
+    "digital_id_generated",
+    "digital_id_issue_notes",
+    "gov_ayuda_programs",
+    "authenticated_status",
+    "record_type",
 )
+
+# Human-readable labels, used in validation error messages and available to
+# templates. Keep in sync with ENTRY_DEFAULT_FIELDS above.
+ENTRY_DEFAULT_FIELD_LABELS = {
+    "city_municipality": "City / Municipality",
+    "barangay": "Barangay",
+    "specific_location": "Specific Location",
+    "type_of_rc": "Type of RC",
+    "rko_employee_id": "Name of RKO",
+    "applicant_first_name": "First Name",
+    "applicant_middle_name": "Middle Name",
+    "applicant_last_name": "Last Name",
+    "applicant_suffix": "Suffix",
+    "dob_month": "Date of Birth - Month",
+    "dob_day": "Date of Birth - Day",
+    "dob_year": "Date of Birth - Year",
+    "gender": "Gender",
+    "age_category": "Age Category",
+    "contact_number": "Contact Number",
+    "overseas_registrant": "Overseas Registrant?",
+    "trn_or_pcn": "Transaction Reference Number / National ID Card Number",
+    "old_trn": "Old TRN (Recaptured)",
+    "service_availed": "Services Availed",
+    "philid_ephilid_presented": "PhilID/ePhilID Presented?",
+    "change_correction": "Change/Correction",
+    "fields_changed": "Fields to be Changed or corrected",
+    "supporting_document": "Supporting Document",
+    "national_id_form_presented": "National ID in Paper Form",
+    "ephilid_status": "ePhilID Status",
+    "ephilid_issued_date": "ePhilID Issued Date",
+    "digital_id_assistance": "Assistance Given",
+    "digital_id_generated": "Successfully Generated?",
+    "digital_id_issue_notes": "If generation is unsuccessful, indicate issues",
+    "gov_ayuda_programs": "Government Ayuda Programs",
+    "authenticated_status": "Authenticated",
+    "record_type": "Type of Registration",
+}
 
 # reporting_date_mode: "blank" (leave the date empty as before) or
 # "today" (always pre-fill with today's date).
@@ -1085,94 +1182,96 @@ def get_entry_defaults(user_id: int):
     ).fetchone()
 
 
+def _entry_defaults_values_and_locked(row) -> tuple[dict, set[str]]:
+    """Parses a row's values_json/locked_json, falling back to the older
+    fixed columns for rows saved before this field became JSON-based (so
+    nobody's existing defaults silently disappear after an upgrade)."""
+    values: dict = {}
+    locked: set[str] = set()
+    if row is None:
+        return values, locked
+
+    if row["values_json"]:
+        try:
+            values = json.loads(row["values_json"]) or {}
+        except (TypeError, ValueError):
+            values = {}
+    if row["locked_json"]:
+        try:
+            locked = set(json.loads(row["locked_json"]) or [])
+        except (TypeError, ValueError):
+            locked = set()
+
+    if not values and not locked:
+        # Legacy row saved before the JSON columns existed -- read the old
+        # fixed columns once so it isn't lost.
+        for field in ("city_municipality", "barangay", "specific_location", "type_of_rc", "rko_employee_id"):
+            if row[field] not in (None, ""):
+                values[field] = row[field]
+            if row[f"{field}_locked"]:
+                locked.add(field)
+
+    return values, locked
+
+
 def save_entry_defaults(user_id: int, payload: dict) -> None:
     if not user_id:
         raise ValueError("A logged-in user is required to save entry defaults.")
 
-    def _locked(name: str) -> int:
-        return 1 if payload.get(f"{name}_locked") else 0
+    def _locked(name: str) -> bool:
+        return bool(payload.get(f"{name}_locked"))
 
     reporting_date_mode = (payload.get("reporting_date_mode") or "blank").strip()
     if reporting_date_mode not in REPORTING_DATE_MODES:
         reporting_date_mode = "blank"
-
-    # A field can only be locked once the RKO/RA has actually selected or
-    # entered a value for it -- locking a still-blank field would just
-    # auto-input nothing, silently forcing every new entry to be missing
-    # that field. This applies equally to every user regardless of RKO/RA.
-    FIELD_LABELS = {
-        "city_municipality": "City / Municipality",
-        "barangay": "Barangay",
-        "specific_location": "Specific Location",
-        "type_of_rc": "Type of RC",
-        "rko_employee_id": "Name of RKO",
-    }
-    for field, label in FIELD_LABELS.items():
-        if _locked(field) and not (payload.get(field) or "").strip():
-            raise ValueError(f'Select a value for "{label}" before you can lock it.')
     if _locked("reporting_date") and reporting_date_mode != "today":
         raise ValueError(
             'Choose "Always today\'s date" for Reporting Date before you can lock it '
             '(you can\'t lock a date that\'s left blank).'
         )
 
-    rko_employee_id = payload.get("rko_employee_id") or None
+    # A field can only be locked once the user has actually selected/entered
+    # a value for it -- locking a still-blank field would just auto-input
+    # nothing, silently forcing every new entry to be missing that field.
+    values: dict = {}
+    locked: set[str] = set()
+    for field in ENTRY_DEFAULT_FIELDS:
+        raw_value = payload.get(field)
+        value = raw_value.strip() if isinstance(raw_value, str) else raw_value
+        if field == "rko_employee_id" and value:
+            value = int(value)
+        if value not in (None, ""):
+            values[field] = value
+        if _locked(field):
+            if not value:
+                label = ENTRY_DEFAULT_FIELD_LABELS.get(field, field)
+                raise ValueError(f'Select a value for "{label}" before you can lock it.')
+            locked.add(field)
 
-    values = {
-        "city_municipality": _upper_text(payload.get("city_municipality")),
-        "city_municipality_locked": _locked("city_municipality"),
-        "barangay": _upper_text(payload.get("barangay")),
-        "barangay_locked": _locked("barangay"),
-        "specific_location": _title_text(payload.get("specific_location")),
-        "specific_location_locked": _locked("specific_location"),
-        "type_of_rc": _upper_text(payload.get("type_of_rc")),
-        "type_of_rc_locked": _locked("type_of_rc"),
-        "rko_employee_id": int(rko_employee_id) if rko_employee_id else None,
-        "rko_employee_id_locked": _locked("rko_employee_id"),
-        "reporting_date_mode": reporting_date_mode,
-        "reporting_date_locked": _locked("reporting_date"),
-    }
+    if _locked("reporting_date"):
+        locked.add("reporting_date")
 
     db = get_db()
     existing = get_entry_defaults(user_id)
+    values_json = json.dumps(values)
+    locked_json = json.dumps(sorted(locked))
     if existing is None:
         db.execute(
             """
-            INSERT INTO entry_defaults
-            (user_id, city_municipality, city_municipality_locked, barangay, barangay_locked,
-             specific_location, specific_location_locked, type_of_rc, type_of_rc_locked,
-             rko_employee_id, rko_employee_id_locked, reporting_date_mode, reporting_date_locked)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO entry_defaults (user_id, reporting_date_mode, reporting_date_locked, values_json, locked_json)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (
-                user_id,
-                values["city_municipality"], values["city_municipality_locked"],
-                values["barangay"], values["barangay_locked"],
-                values["specific_location"], values["specific_location_locked"],
-                values["type_of_rc"], values["type_of_rc_locked"],
-                values["rko_employee_id"], values["rko_employee_id_locked"],
-                values["reporting_date_mode"], values["reporting_date_locked"],
-            ),
+            (user_id, reporting_date_mode, 1 if _locked("reporting_date") else 0, values_json, locked_json),
         )
     else:
         db.execute(
             """
             UPDATE entry_defaults
-            SET city_municipality=?, city_municipality_locked=?, barangay=?, barangay_locked=?,
-                specific_location=?, specific_location_locked=?, type_of_rc=?, type_of_rc_locked=?,
-                rko_employee_id=?, rko_employee_id_locked=?, reporting_date_mode=?,
-                reporting_date_locked=?, updated_at=CURRENT_TIMESTAMP
+            SET reporting_date_mode=?, reporting_date_locked=?, values_json=?, locked_json=?,
+                updated_at=CURRENT_TIMESTAMP
             WHERE user_id=?
             """,
-            (
-                values["city_municipality"], values["city_municipality_locked"],
-                values["barangay"], values["barangay_locked"],
-                values["specific_location"], values["specific_location_locked"],
-                values["type_of_rc"], values["type_of_rc_locked"],
-                values["rko_employee_id"], values["rko_employee_id_locked"],
-                values["reporting_date_mode"], values["reporting_date_locked"],
-                user_id,
-            ),
+            (reporting_date_mode, 1 if _locked("reporting_date") else 0, values_json, locked_json, user_id),
         )
     db.commit()
 
@@ -1183,21 +1282,15 @@ def resolve_entry_defaults_for_form(user_id: int) -> tuple[dict, set[str]]:
     come back pre-filled and are also reported in the locked set so the
     view/template can render them read-only and the save step can enforce
     the locked value server-side, regardless of what the client submits."""
-    defaults = get_entry_defaults(user_id)
-    values: dict = {}
-    locked: set[str] = set()
-    if not defaults:
-        return values, locked
+    row = get_entry_defaults(user_id)
+    if not row:
+        return {}, set()
 
-    for field in ENTRY_DEFAULT_FIELDS:
-        if defaults[field] not in (None, ""):
-            values[field] = defaults[field]
-        if defaults[f"{field}_locked"]:
-            locked.add(field)
+    values, locked = _entry_defaults_values_and_locked(row)
 
-    if defaults["reporting_date_mode"] == "today":
+    if row["reporting_date_mode"] == "today":
         values["reporting_date"] = datetime.now().strftime("%Y-%m-%d")
-    if defaults["reporting_date_locked"]:
+    if row["reporting_date_locked"]:
         locked.add("reporting_date")
 
     return values, locked
