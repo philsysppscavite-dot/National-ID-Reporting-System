@@ -6,7 +6,11 @@ from flask import Flask
 
 from .auth import register_auth
 from .db import init_app as init_db_app
-from .scheduler import start_data_entry_sync_job, start_direct_message_purge_job
+from .scheduler import (
+    start_data_entry_sync_job,
+    start_direct_message_purge_job,
+    start_trn_folder_sync_job,
+)
 from .sheets_db import init_sheets
 from .views import register_routes
 
@@ -51,4 +55,5 @@ def create_app() -> Flask:
     register_auth(app)
     start_direct_message_purge_job(app)
     start_data_entry_sync_job(app)
+    start_trn_folder_sync_job(app)
     return app

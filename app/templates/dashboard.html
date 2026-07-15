@@ -73,6 +73,63 @@
     </div>
   </form>
 </section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>TRN File Sync</h3>
+    <p>
+      The other system drops its Transaction Reference Number / National ID ZIP exports into a folder on this
+      computer. Set that source folder and a local sync/backup folder below &mdash; the app checks the source
+      folder automatically every few minutes and copies over anything new (based on the file's modified time),
+      or you can check right now.
+    </p>
+  </div>
+  <form method="post" action="{{ url_for('save_trn_sync_settings') }}" class="grid-form compact-grid">
+    <label class="full-row">Source Folder (where the other system saves the ZIP files)
+      <input type="text" name="trn_sync_source_folder" value="{{ trn_sync_settings.source_folder or '' }}"
+             placeholder="e.g. C:\Users\Public\NationalID_Exports or /home/user/nid_exports">
+    </label>
+    <label class="full-row">Sync / Backup Folder (where new files get copied to)
+      <input type="text" name="trn_sync_dest_folder" value="{{ trn_sync_settings.dest_folder or '' }}"
+             placeholder="e.g. C:\Users\Public\NationalID_Synced or /home/user/nid_synced">
+    </label>
+    <div class="full-row">
+      <button type="submit">Save Folder Paths</button>
+    </div>
+  </form>
+  <form method="post" action="{{ url_for('trn_sync_check_now') }}" class="full-row" style="margin-top:0.75rem;">
+    <button type="submit">Check for New Files Now</button>
+  </form>
+
+  {% if trn_sync_log %}
+  <div class="table-scroll" style="margin-top:1rem;">
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>File Modified</th>
+          <th>Synced At</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in trn_sync_log %}
+        <tr>
+          <td>{{ row.filename }}</td>
+          <td>{{ row.file_modified_at }}</td>
+          <td>{{ row.synced_at }}</td>
+          <td>
+            {% if row.status == 'synced' %}Synced{% else %}Error: {{ row.error_message }}{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="subtle" style="margin-top:1rem;">No files synced yet.</p>
+  {% endif %}
+</section>
 {% endif %}
 
 {% if pending_client_notifications %}

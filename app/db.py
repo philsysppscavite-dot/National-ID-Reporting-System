@@ -246,6 +246,27 @@ CREATE TABLE IF NOT EXISTS entry_defaults (
     FOREIGN KEY (rko_employee_id) REFERENCES employees (id) ON DELETE SET NULL
 );
 
+-- Logs every file the TRN/National ID folder-sync job has copied over from
+-- the source folder (where the other system drops its ZIP exports) to the
+-- local sync/backup folder. Used both to show a history in the app and to
+-- avoid re-copying a file we've already handled: a file is only copied when
+-- its on-disk modified time is newer than the newest modified time we've
+-- already recorded here (or its exact filename+mtime combo hasn't been
+-- logged yet).
+CREATE TABLE IF NOT EXISTS trn_sync_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT NOT NULL,
+    source_path TEXT NOT NULL,
+    dest_path TEXT,
+    file_modified_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'synced',
+    error_message TEXT,
+    synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_trn_sync_log_filename_mtime
+ON trn_sync_log (filename, file_modified_at);
+
 CREATE TABLE IF NOT EXISTS direct_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sender_id INTEGER NOT NULL,
@@ -353,6 +374,17 @@ def init_db() -> None:
     )
     _ensure_column(db, "entry_defaults", "values_json", "TEXT")
     _ensure_column(db, "entry_defaults", "locked_json", "TEXT")
+    # TRN/National ID folder-sync settings default to blank -- the sync job
+    # simply does nothing until an admin fills in both folder paths from
+    # Dashboard -> TRN File Sync.
+    db.execute(
+        "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
+        ("trn_sync_source_folder", ""),
+    )
+    db.execute(
+        "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
+        ("trn_sync_dest_folder", ""),
+    )
     for full_name in SEED_RKO_NAMES:
         db.execute(
             """

@@ -2103,3 +2103,83 @@ def unread_dm_counts_by_sender(recipient_id: int) -> dict[int, int]:
         (recipient_id,),
     ).fetchall()
     return {row["sender_id"]: row["n"] for row in rows}
+
+
+# ---------------------------------------------------------------------------
+# TRN / National ID folder sync
+#
+# The other system that generates Transaction Reference Number / National ID
+# Card files drops them (as a ZIP, named after the TRN/ID) into a local
+# folder on this same machine. This app periodically checks that folder for
+# files it hasn't seen yet -- "new" meaning the file's modified time is
+# newer than the newest one already logged -- and copies each new one into a
+# separate local sync/backup folder, logging every copy (or failure) to
+# trn_sync_log so there's a visible history and nothing gets copied twice.
+# ---------------------------------------------------------------------------
+
+
+def get_trn_sync_settings() -> dict[str, str]:
+    settings = fetch_settings()
+    return {
+        "source_folder": settings.get("trn_sync_source_folder", "") or "",
+        "dest_folder": settings.get("trn_sync_dest_folder", "") or "",
+    }
+
+
+def set_trn_sync_folders(source_folder: str, dest_folder: str) -> None:
+    set_setting("trn_sync_source_folder", (source_folder or "").strip())
+    set_setting("trn_sync_dest_folder", (dest_folder or "").strip())
+
+
+def latest_synced_file_modified_at() -> str | None:
+    """Newest file_modified_at we've already logged as synced. A file in the
+    source folder is only "new" if its modified time is newer than this."""
+    row = get_db().execute(
+        "SELECT MAX(file_modified_at) AS latest FROM trn_sync_log WHERE status = 'synced'"
+    ).fetchone()
+    return row["latest"] if row and row["latest"] else None
+
+
+def is_file_already_synced(filename: str, file_modified_at: str) -> bool:
+    row = get_db().execute(
+        """
+        SELECT 1 FROM trn_sync_log
+        WHERE filename = ? AND file_modified_at = ? AND status = 'synced'
+        LIMIT 1
+        """,
+        (filename, file_modified_at),
+    ).fetchone()
+    return row is not None
+
+
+def record_trn_sync_result(
+    *,
+    filename: str,
+    source_path: str,
+    dest_path: str | None,
+    file_modified_at: str,
+    status: str,
+    error_message: str | None = None,
+) -> None:
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO trn_sync_log
+            (filename, source_path, dest_path, file_modified_at, status, error_message)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (filename, source_path, dest_path, file_modified_at, status, error_message),
+    )
+    db.commit()
+
+
+def list_trn_sync_log(limit: int = 25) -> list:
+    return get_db().execute(
+        """
+        SELECT filename, source_path, dest_path, file_modified_at, status, error_message, synced_at
+        FROM trn_sync_log
+        ORDER BY synced_at DESC, id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()

@@ -55,6 +55,7 @@ from .repository import (
     get_output,
     get_signatory,
     get_nid_concern,
+    get_trn_sync_settings,
     get_user,
     city_service_rows,
     delete_imported_outputs,
@@ -76,6 +77,7 @@ from .repository import (
     list_schedule_employees,
     list_schedules,
     list_signatories,
+    list_trn_sync_log,
     list_users,
     mark_concern_client_informed,
     mark_data_entries_sent_to_sheet,
@@ -95,6 +97,7 @@ from .repository import (
     save_signatory,
     send_direct_message,
     set_setting,
+    set_trn_sync_folders,
     signatories_for_report,
     unread_dm_counts_by_sender,
     update_nid_concern,
@@ -104,6 +107,7 @@ from .repository import (
 )
 from .services.export import ExportError, export_data_entries_to_sheet
 from .services.importers import import_from_apps_script, import_from_csv_url, reimport_source
+from .services.trn_folder_sync import check_for_new_trn_files
 from .services.reports import (
     build_dar_workbook,
     generate_all_employees_dar_pdf_zip,
@@ -256,6 +260,8 @@ def register_routes(app):
                 ticket_page_start=(page_start + 1) if total_tickets else 0,
                 ticket_page_end=min(page_end, total_tickets),
                 ticket_form_old=ticket_form_old,
+                trn_sync_settings=get_trn_sync_settings(),
+                trn_sync_log=list_trn_sync_log(10),
             )
         except Exception as e:
             from flask import jsonify
@@ -1108,6 +1114,21 @@ def register_routes(app):
             if key in request.form:
                 set_setting(key, request.form.get(key, "").strip())
         flash("Report settings updated.", "success")
+        return redirect(url_for("dashboard"))
+
+    @app.post("/settings/trn-sync")
+    def save_trn_sync_settings():
+        set_trn_sync_folders(
+            request.form.get("trn_sync_source_folder", ""),
+            request.form.get("trn_sync_dest_folder", ""),
+        )
+        flash("TRN File Sync folder paths saved.", "success")
+        return redirect(url_for("dashboard"))
+
+    @app.post("/trn-sync/check-now")
+    def trn_sync_check_now():
+        result = check_for_new_trn_files()
+        flash(result.message, "success" if result.ok else "error")
         return redirect(url_for("dashboard"))
 
     @app.get("/reports/employee/<int:employee_id>")

@@ -40,6 +40,11 @@ PURGE_INTERVAL_SECONDS = 15 * 60
 # resolves itself within a few minutes without anyone noticing.
 DATA_ENTRY_SYNC_INTERVAL_SECONDS = 5 * 60
 
+# How often to check the local TRN/National ID source folder for new files
+# from the other system. There's also a manual "Check for New Files Now"
+# button on the Dashboard for anyone who doesn't want to wait.
+TRN_FOLDER_SYNC_INTERVAL_SECONDS = 5 * 60
+
 
 def _run_forever(app) -> None:
     stop_event = app.extensions["dm_purge_stop_event"]
@@ -149,6 +154,48 @@ def start_data_entry_sync_job(app) -> None:
     )
     app.extensions["data_entry_sync_stop_event"] = stop_event
     app.extensions["data_entry_sync_thread"] = thread
+    thread.start()
+
+    atexit.register(stop_event.set)
+
+
+def _run_trn_folder_sync_forever(app) -> None:
+    stop_event = app.extensions["trn_folder_sync_stop_event"]
+    from .services.trn_folder_sync import check_for_new_trn_files
+
+    while not stop_event.wait(TRN_FOLDER_SYNC_INTERVAL_SECONDS):
+        try:
+            with app.app_context():
+                result = check_for_new_trn_files()
+                if result.synced_count or result.error_count:
+                    logger.info("TRN folder sync: %s", result.message)
+        except Exception:  # pragma: no cover - background job, log and keep going
+            logger.exception("TRN folder sync job failed")
+
+
+def start_trn_folder_sync_job(app) -> None:
+    """Start the background TRN/National ID folder-sync thread.
+
+    Same guards as the other background jobs above. Harmless to run even
+    before the source/dest folders are configured -- check_for_new_trn_files
+    just reports that and does nothing until an admin sets them.
+    """
+    if app.config.get("TESTING"):
+        return
+    if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
+    if app.extensions.get("trn_folder_sync_thread") is not None:
+        return
+
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=_run_trn_folder_sync_forever,
+        args=(app,),
+        name="trn-folder-sync",
+        daemon=True,
+    )
+    app.extensions["trn_folder_sync_stop_event"] = stop_event
+    app.extensions["trn_folder_sync_thread"] = thread
     thread.start()
 
     atexit.register(stop_event.set)
