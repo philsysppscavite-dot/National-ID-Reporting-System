@@ -46,6 +46,33 @@
   </div>
   <a class="button-link" href="{{ url_for('import_sources_page') }}">Manage Import Sources</a>
 </section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h3>Report Settings</h3>
+    <p>These apply across the whole app, including where "Send Report to Google Sheet" (on the Data Entry page) exports to.</p>
+  </div>
+  <form method="post" action="{{ url_for('save_settings') }}" class="grid-form compact-grid">
+    <label>Organization Name
+      <input type="text" name="organization_name" value="{{ app_settings.organization_name or '' }}">
+    </label>
+    <label>Report Title
+      <input type="text" name="report_title" value="{{ app_settings.report_title or '' }}">
+    </label>
+    <label class="full-row">TRN Logsheet Google Sheet URL
+      <input type="url" name="trn_logsheet_url" value="{{ app_settings.trn_logsheet_url or '' }}"
+             placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=...">
+    </label>
+    <p class="subtle full-row">
+      Paste the full URL of the shared Google Sheet tab that Data Entries should be sent to (e.g. this month's
+      "TRN Daily Logsheet" responses sheet). Make sure that sheet is shared with the app's service account
+      (see GOOGLE_SHEETS_SETUP.md) as an Editor.
+    </p>
+    <div class="full-row">
+      <button type="submit">Save Report Settings</button>
+    </div>
+  </form>
+</section>
 {% endif %}
 
 {% if pending_client_notifications %}

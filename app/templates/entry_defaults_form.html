@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Data Entry</p>
+    <h2>My Entry Defaults</h2>
+  </div>
+  <a class="button-link secondary" href="{{ url_for('data_entries') }}">Back</a>
+</section>
+
+<section class="panel form-panel">
+  <div class="panel-head">
+    <h3>Auto-fill &amp; Lock</h3>
+    <p>
+      Set the values you want pre-filled every time you add a new Data Entry. Tick "Lock" on any
+      field to have it auto-input and read-only on the form &mdash; only you decide which fields to lock,
+      and you can change this anytime. Locking never affects entries you're editing, only new ones.
+    </p>
+  </div>
+
+  <form method="post" class="grid-form" id="entryDefaultsForm">
+
+    <label>Reporting Date
+      <select name="reporting_date_mode" id="field-reporting_date_mode">
+        <option value="blank" {% if not defaults or defaults['reporting_date_mode'] == 'blank' %}selected{% endif %}>Leave blank (pick each time)</option>
+        <option value="today" {% if defaults and defaults['reporting_date_mode'] == 'today' %}selected{% endif %}>Always today's date</option>
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="reporting_date_locked" id="lock-reporting_date"
+               data-requires="field-reporting_date_mode" data-requires-value="today"
+               {% if defaults and defaults['reporting_date_locked'] %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Choose "Always today's date" first to enable locking.</p>
+    </label>
+
+    <label>City / Municipality
+      {% set selected_city = defaults['city_municipality'] if defaults else '' %}
+      <select name="city_municipality" id="field-city_municipality">
+        <option value="">Select city / municipality</option>
+        {% for city in city_municipalities %}
+        <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>{{ city }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="city_municipality_locked" id="lock-city_municipality"
+               data-requires="field-city_municipality"
+               {% if defaults and defaults['city_municipality_locked'] %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select a city / municipality first to enable locking.</p>
+    </label>
+
+    <label>Barangay
+      <input type="text" name="barangay" id="field-barangay" value="{{ defaults['barangay'] if defaults else '' }}" data-title-case>
+      <label class="field-lock">
+        <input type="checkbox" name="barangay_locked" id="lock-barangay"
+               data-requires="field-barangay"
+               {% if defaults and defaults['barangay_locked'] %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a barangay first to enable locking.</p>
+    </label>
+
+    <label>Specific Location
+      <input type="text" name="specific_location" id="field-specific_location" value="{{ defaults['specific_location'] if defaults else '' }}" data-title-case>
+      <label class="field-lock">
+        <input type="checkbox" name="specific_location_locked" id="lock-specific_location"
+               data-requires="field-specific_location"
+               {% if defaults and defaults['specific_location_locked'] %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a specific location first to enable locking.</p>
+    </label>
+
+    <label>Type of RC
+      <input type="text" name="type_of_rc" id="field-type_of_rc" value="{{ defaults['type_of_rc'] if defaults else '' }}" placeholder="e.g. Fixed / Mobile / Pop-up">
+      <label class="field-lock">
+        <input type="checkbox" name="type_of_rc_locked" id="lock-type_of_rc"
+               data-requires="field-type_of_rc"
+               {% if defaults and defaults['type_of_rc_locked'] %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Enter a type of RC first to enable locking.</p>
+    </label>
+
+    <label>Name of RKO
+      {% set selected_rko = defaults['rko_employee_id'] if defaults else '' %}
+      <select name="rko_employee_id" id="field-rko_employee_id">
+        <option value="">Select RKO</option>
+        {% for employee in employees %}
+        <option value="{{ employee['id'] }}" {% if selected_rko|string == employee['id']|string %}selected{% endif %}>{{ employee["full_name"] }}</option>
+        {% endfor %}
+      </select>
+      <label class="field-lock">
+        <input type="checkbox" name="rko_employee_id_locked" id="lock-rko_employee_id"
+               data-requires="field-rko_employee_id"
+               {% if defaults and defaults['rko_employee_id_locked'] %}checked{% endif %}>
+        Lock (read-only on the form)
+      </label>
+      <p class="subtle field-lock-hint">Select the RKO first to enable locking.</p>
+    </label>
+
+    <div class="full-row">
+      <button type="submit">Save My Defaults</button>
+    </div>
+  </form>
+</section>
+
+<script>
+  (function () {
+    var form = document.getElementById("entryDefaultsForm");
+    if (!form) { return; }
+    var lockBoxes = Array.prototype.slice.call(form.querySelectorAll("[data-requires]"));
+
+    function hasValue(el) {
+      return !!(el && el.value && el.value.trim());
+    }
+
+    function refreshLock(lockBox) {
+      var sourceEl = document.getElementById(lockBox.dataset.requires);
+      var requiredValue = lockBox.dataset.requiresValue;
+      var satisfied = requiredValue ? (sourceEl && sourceEl.value === requiredValue) : hasValue(sourceEl);
+      var hint = lockBox.closest("label").parentElement.querySelector(".field-lock-hint");
+      lockBox.disabled = !satisfied;
+      if (!satisfied) {
+        lockBox.checked = false;
+      }
+      if (hint) {
+        hint.style.display = satisfied ? "none" : "block";
+      }
+    }
+
+    lockBoxes.forEach(function (lockBox) {
+      var sourceEl = document.getElementById(lockBox.dataset.requires);
+      if (!sourceEl) { return; }
+      refreshLock(lockBox);
+      sourceEl.addEventListener("input", function () { refreshLock(lockBox); });
+      sourceEl.addEventListener("change", function () { refreshLock(lockBox); });
+    });
+  })();
+</script>
+{% endblock %}

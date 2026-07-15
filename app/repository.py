@@ -10,6 +10,32 @@ from . import sheets_db
 from .db import ROLE_ADMIN, ROLE_ISA, ROLE_USER, ROLES, get_db
 
 
+CITY_MUNICIPALITIES = [
+    "ALFONSO",
+    "AMADEO",
+    "BACOOR CITY",
+    "CARMONA",
+    "CAVITE CITY",
+    "CITY OF DASMARIÑAS",
+    "GENERAL EMILIO AGUINALDO",
+    "CITY OF GENERAL TRIAS",
+    "IMUS CITY",
+    "INDANG",
+    "KAWIT",
+    "MAGALLANES",
+    "MARAGONDON",
+    "MENDEZ (MENDEZ-NUÑEZ)",
+    "NAIC",
+    "NOVELETA",
+    "ROSARIO",
+    "SILANG",
+    "TAGAYTAY CITY",
+    "TANZA",
+    "TERNATE",
+    "TRECE MARTIRES CITY (Capital)",
+    "GEN. MARIANO ALVAREZ",
+]
+
 SERVICE_TYPES = [
     "National ID Registration",
     "Issuance of National ID in Paper Form Only",
@@ -21,6 +47,33 @@ SERVICE_TYPES = [
     "Recapture",
     "Rejected Packet",
     "Authentication and Issuance of National ID in Paper Form",
+]
+
+# --- Data Entry (per-applicant registration log) -----------------------
+# A handful of these option lists are placeholders until the definitive
+# dropdown values are provided -- those fields are left as free-text
+# inputs on the form for now (Barangay, Specific Location, Type of RC,
+# Age Category, ePhilID Status, Government Ayuda Programs) so nothing is
+# guessed incorrectly. The lists below are the ones already spelled out
+# with fixed values.
+GENDER_OPTIONS = ["Male", "Female"]
+
+DIGITAL_ID_ASSISTANCE_OPTIONS = [
+    ("1", "1 - Assisted / Provided with Assistance"),
+    ("2", "2 - Declined: No Smartphone/Mobile Data"),
+    ("3", "3 - Declined: Not interested"),
+    ("4", "4 - Declined: Already has a Digital National ID"),
+]
+
+YES_NO_OPTIONS = ["Yes", "No"]
+
+OVERSEAS_REGISTRANT_OPTIONS = ["Y", "N"]
+
+AUTHENTICATED_OPTIONS = ["Yes Match", "No Match"]
+
+DOB_MONTH_OPTIONS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
 ]
 
 
@@ -681,6 +734,307 @@ def delete_output(output_id: int) -> None:
     db = get_db()
     db.execute("DELETE FROM employee_outputs WHERE id = ?", (output_id,))
     db.commit()
+
+
+def list_data_entries(filters: dict | None = None) -> list:
+    filters = filters or {}
+    sql = """
+        SELECT d.*, e.full_name AS rko_full_name
+        FROM data_entries d
+        LEFT JOIN employees e ON e.id = d.rko_employee_id
+        WHERE 1 = 1
+    """
+    params: list = []
+    if filters.get("city_municipality"):
+        sql += " AND d.city_municipality = ?"
+        params.append(filters["city_municipality"])
+    if filters.get("rko_employee_id"):
+        sql += " AND d.rko_employee_id = ?"
+        params.append(filters["rko_employee_id"])
+    if filters.get("start_date"):
+        sql += " AND d.reporting_date >= ?"
+        params.append(filters["start_date"])
+    if filters.get("end_date"):
+        sql += " AND d.reporting_date <= ?"
+        params.append(filters["end_date"])
+    if filters.get("search"):
+        sql += """ AND (
+            d.applicant_first_name LIKE ? OR d.applicant_last_name LIKE ?
+            OR d.trn_or_pcn LIKE ?
+        )"""
+        term = f"%{filters['search']}%"
+        params.extend([term, term, term])
+    if filters.get("created_by_user_id"):
+        sql += " AND d.created_by_user_id = ?"
+        params.append(filters["created_by_user_id"])
+    if "sent_to_sheet" in filters:
+        sql += " AND d.sent_to_sheet = ?"
+        params.append(1 if filters["sent_to_sheet"] else 0)
+    sql += " ORDER BY d.reporting_date DESC, d.id DESC"
+    return get_db().execute(sql, params).fetchall()
+
+
+def get_data_entry(entry_id: int):
+    return get_db().execute(
+        "SELECT * FROM data_entries WHERE id = ?",
+        (entry_id,),
+    ).fetchone()
+
+
+def save_data_entry(
+    entry_id: int | None,
+    payload: dict,
+    *,
+    created_by_user_id: int | None = None,
+    created_by_name: str | None = None,
+) -> int:
+    reporting_date = (payload.get("reporting_date") or "").strip()
+    if not reporting_date:
+        raise ValueError("Reporting Date is required.")
+
+    old_trn = (payload.get("old_trn") or "").strip()
+    if old_trn and not is_valid_trn_ref_no(old_trn):
+        raise ValueError("Old TRN (Recaptured Applicants) must be exactly 29 digits.")
+
+    contact_number = (payload.get("contact_number") or "").strip()
+    normalized_contact = contact_number
+    if contact_number:
+        normalized = normalize_mobile_number(contact_number)
+        if normalized:
+            normalized_contact = normalized
+
+    rko_employee_id = payload.get("rko_employee_id") or None
+
+    fields = (
+        reporting_date,
+        _upper_text(payload.get("city_municipality")),
+        _upper_text(payload.get("barangay")),
+        _title_text(payload.get("specific_location")),
+        _upper_text(payload.get("type_of_rc")),
+        int(rko_employee_id) if rko_employee_id else None,
+        _title_text(payload.get("applicant_first_name")),
+        _title_text(payload.get("applicant_middle_name")),
+        _title_text(payload.get("applicant_last_name")),
+        _title_text(payload.get("applicant_suffix")),
+        (payload.get("trn_or_pcn") or "").strip(),
+        (payload.get("age_category") or "").strip(),
+        (payload.get("service_availed") or "").strip(),
+        (payload.get("ephilid_status") or "").strip(),
+        (payload.get("ephilid_issued_date") or "").strip() or None,
+        (payload.get("digital_id_assistance") or "").strip(),
+        (payload.get("digital_id_generated") or "").strip(),
+        (payload.get("digital_id_issue_notes") or "").strip(),
+        (payload.get("dob_month") or "").strip(),
+        (payload.get("dob_day") or "").strip(),
+        (payload.get("dob_year") or "").strip(),
+        (payload.get("gender") or "").strip(),
+        old_trn,
+        normalized_contact,
+        (payload.get("overseas_registrant") or "").strip(),
+        (payload.get("gov_ayuda_programs") or "").strip(),
+        (payload.get("authenticated_status") or "").strip(),
+    )
+    db = get_db()
+    if entry_id is None:
+        cursor = db.execute(
+            """
+            INSERT INTO data_entries
+            (reporting_date, city_municipality, barangay, specific_location, type_of_rc,
+             rko_employee_id, applicant_first_name, applicant_middle_name, applicant_last_name,
+             applicant_suffix, trn_or_pcn, age_category, service_availed, ephilid_status,
+             ephilid_issued_date, digital_id_assistance, digital_id_generated, digital_id_issue_notes,
+             dob_month, dob_day, dob_year, gender, old_trn, contact_number, overseas_registrant,
+             gov_ayuda_programs, authenticated_status, created_by_user_id, created_by_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (*fields, created_by_user_id, created_by_name),
+        )
+        db.commit()
+        return cursor.lastrowid
+    db.execute(
+        """
+        UPDATE data_entries
+        SET reporting_date=?, city_municipality=?, barangay=?, specific_location=?, type_of_rc=?,
+            rko_employee_id=?, applicant_first_name=?, applicant_middle_name=?,
+            applicant_last_name=?, applicant_suffix=?, trn_or_pcn=?, age_category=?, service_availed=?,
+            ephilid_status=?, ephilid_issued_date=?, digital_id_assistance=?, digital_id_generated=?,
+            digital_id_issue_notes=?, dob_month=?, dob_day=?, dob_year=?, gender=?, old_trn=?,
+            contact_number=?, overseas_registrant=?, gov_ayuda_programs=?, authenticated_status=?
+        WHERE id=?
+        """,
+        (*fields, entry_id),
+    )
+    db.commit()
+    return entry_id
+
+
+def delete_data_entry(entry_id: int) -> None:
+    db = get_db()
+    db.execute("DELETE FROM data_entries WHERE id = ?", (entry_id,))
+    db.commit()
+
+
+def mark_data_entries_sent_to_sheet(entry_ids: Iterable[int]) -> None:
+    entry_ids = [int(i) for i in entry_ids]
+    if not entry_ids:
+        return
+    db = get_db()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    placeholders = ",".join("?" for _ in entry_ids)
+    db.execute(
+        f"UPDATE data_entries SET sent_to_sheet = 1, sent_to_sheet_at = ? "
+        f"WHERE id IN ({placeholders})",
+        (now, *entry_ids),
+    )
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Entry Defaults -- per-user auto-lock defaults for the Data Entry form.
+# Each RKO/user can pre-fill and optionally lock (read-only, auto-input)
+# specific fields for themselves -- e.g. their own name as RKO, today's
+# date, their usual city/barangay -- so they don't have to retype the
+# same values on every entry. Locking is entirely up to the user.
+# ---------------------------------------------------------------------------
+
+ENTRY_DEFAULT_FIELDS = (
+    "city_municipality",
+    "barangay",
+    "specific_location",
+    "type_of_rc",
+    "rko_employee_id",
+)
+
+# reporting_date_mode: "blank" (leave the date empty as before) or
+# "today" (always pre-fill with today's date).
+REPORTING_DATE_MODES = ["blank", "today"]
+
+
+def get_entry_defaults(user_id: int):
+    if not user_id:
+        return None
+    return get_db().execute(
+        "SELECT * FROM entry_defaults WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+
+
+def save_entry_defaults(user_id: int, payload: dict) -> None:
+    if not user_id:
+        raise ValueError("A logged-in user is required to save entry defaults.")
+
+    def _locked(name: str) -> int:
+        return 1 if payload.get(f"{name}_locked") else 0
+
+    reporting_date_mode = (payload.get("reporting_date_mode") or "blank").strip()
+    if reporting_date_mode not in REPORTING_DATE_MODES:
+        reporting_date_mode = "blank"
+
+    # A field can only be locked once the RKO/RA has actually selected or
+    # entered a value for it -- locking a still-blank field would just
+    # auto-input nothing, silently forcing every new entry to be missing
+    # that field. This applies equally to every user regardless of RKO/RA.
+    FIELD_LABELS = {
+        "city_municipality": "City / Municipality",
+        "barangay": "Barangay",
+        "specific_location": "Specific Location",
+        "type_of_rc": "Type of RC",
+        "rko_employee_id": "Name of RKO",
+    }
+    for field, label in FIELD_LABELS.items():
+        if _locked(field) and not (payload.get(field) or "").strip():
+            raise ValueError(f'Select a value for "{label}" before you can lock it.')
+    if _locked("reporting_date") and reporting_date_mode != "today":
+        raise ValueError(
+            'Choose "Always today\'s date" for Reporting Date before you can lock it '
+            '(you can\'t lock a date that\'s left blank).'
+        )
+
+    rko_employee_id = payload.get("rko_employee_id") or None
+
+    values = {
+        "city_municipality": _upper_text(payload.get("city_municipality")),
+        "city_municipality_locked": _locked("city_municipality"),
+        "barangay": _upper_text(payload.get("barangay")),
+        "barangay_locked": _locked("barangay"),
+        "specific_location": _title_text(payload.get("specific_location")),
+        "specific_location_locked": _locked("specific_location"),
+        "type_of_rc": _upper_text(payload.get("type_of_rc")),
+        "type_of_rc_locked": _locked("type_of_rc"),
+        "rko_employee_id": int(rko_employee_id) if rko_employee_id else None,
+        "rko_employee_id_locked": _locked("rko_employee_id"),
+        "reporting_date_mode": reporting_date_mode,
+        "reporting_date_locked": _locked("reporting_date"),
+    }
+
+    db = get_db()
+    existing = get_entry_defaults(user_id)
+    if existing is None:
+        db.execute(
+            """
+            INSERT INTO entry_defaults
+            (user_id, city_municipality, city_municipality_locked, barangay, barangay_locked,
+             specific_location, specific_location_locked, type_of_rc, type_of_rc_locked,
+             rko_employee_id, rko_employee_id_locked, reporting_date_mode, reporting_date_locked)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                values["city_municipality"], values["city_municipality_locked"],
+                values["barangay"], values["barangay_locked"],
+                values["specific_location"], values["specific_location_locked"],
+                values["type_of_rc"], values["type_of_rc_locked"],
+                values["rko_employee_id"], values["rko_employee_id_locked"],
+                values["reporting_date_mode"], values["reporting_date_locked"],
+            ),
+        )
+    else:
+        db.execute(
+            """
+            UPDATE entry_defaults
+            SET city_municipality=?, city_municipality_locked=?, barangay=?, barangay_locked=?,
+                specific_location=?, specific_location_locked=?, type_of_rc=?, type_of_rc_locked=?,
+                rko_employee_id=?, rko_employee_id_locked=?, reporting_date_mode=?,
+                reporting_date_locked=?, updated_at=CURRENT_TIMESTAMP
+            WHERE user_id=?
+            """,
+            (
+                values["city_municipality"], values["city_municipality_locked"],
+                values["barangay"], values["barangay_locked"],
+                values["specific_location"], values["specific_location_locked"],
+                values["type_of_rc"], values["type_of_rc_locked"],
+                values["rko_employee_id"], values["rko_employee_id_locked"],
+                values["reporting_date_mode"], values["reporting_date_locked"],
+                user_id,
+            ),
+        )
+    db.commit()
+
+
+def resolve_entry_defaults_for_form(user_id: int) -> tuple[dict, set[str]]:
+    """Returns (default_values, locked_field_names) for building a fresh
+    (non-edit) Data Entry form for this user. Fields the user has locked
+    come back pre-filled and are also reported in the locked set so the
+    view/template can render them read-only and the save step can enforce
+    the locked value server-side, regardless of what the client submits."""
+    defaults = get_entry_defaults(user_id)
+    values: dict = {}
+    locked: set[str] = set()
+    if not defaults:
+        return values, locked
+
+    for field in ENTRY_DEFAULT_FIELDS:
+        if defaults[field] not in (None, ""):
+            values[field] = defaults[field]
+        if defaults[f"{field}_locked"]:
+            locked.add(field)
+
+    if defaults["reporting_date_mode"] == "today":
+        values["reporting_date"] = datetime.now().strftime("%Y-%m-%d")
+    if defaults["reporting_date_locked"]:
+        locked.add("reporting_date")
+
+    return values, locked
 
 
 def list_signatories() -> list:

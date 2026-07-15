@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Data Entry</p>
+    <h2>Applicant Registration Log</h2>
+  </div>
+  <div class="page-head-actions">
+    <a class="button-link secondary" href="{{ url_for('entry_defaults_form') }}">My Entry Defaults</a>
+    <form method="post" action="{{ url_for('data_entries_send_to_sheet') }}" style="display:inline;">
+      <button type="submit">Send Report to Google Sheet</button>
+    </form>
+    <a class="button-link" href="{{ url_for('data_entry_form') }}">Add Data Entry</a>
+  </div>
+</section>
+
+<section class="panel">
+  <form method="get" class="filters compact-form">
+    <select name="city_municipality">
+      <option value="">All Cities / Municipalities</option>
+      {% for city in city_municipalities %}
+      <option value="{{ city }}" {% if filters.get('city_municipality') == city %}selected{% endif %}>{{ city }}</option>
+      {% endfor %}
+    </select>
+    <select name="rko_employee_id">
+      <option value="">All RKOs</option>
+      {% for employee in employees %}
+      <option value="{{ employee['id'] }}" {% if filters.get('rko_employee_id') == employee['id']|string %}selected{% endif %}>{{ employee["full_name"] }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" name="start_date" value="{{ filters.get('start_date', '') }}">
+    <input type="date" name="end_date" value="{{ filters.get('end_date', '') }}">
+    <input type="text" name="search" value="{{ filters.get('search', '') }}" placeholder="Search name, TRN">
+    <button type="submit">Apply Filters</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Reporting Date</th>
+        <th>City / Municipality</th>
+        <th>Barangay</th>
+        <th>Name of RKO</th>
+        <th>Applicant</th>
+        <th>TRN / National ID No.</th>
+        <th>Services Availed</th>
+        <th>Sent to Sheet</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in entries %}
+      <tr>
+        <td>{{ entry["reporting_date"] }}</td>
+        <td>{{ entry["city_municipality"] or "-" }}</td>
+        <td>{{ entry["barangay"] or "-" }}</td>
+        <td>{{ entry["rko_full_name"] or "-" }}</td>
+        <td>{{ [entry["applicant_first_name"], entry["applicant_middle_name"], entry["applicant_last_name"], entry["applicant_suffix"]] | select | join(" ") or "-" }}</td>
+        <td>{{ entry["trn_or_pcn"] or "-" }}</td>
+        <td>{{ entry["service_availed"] or "-" }}</td>
+        <td>{% if entry["sent_to_sheet"] %}<span class="status-badge status-resolved">Sent</span>{% else %}<span class="status-badge status-open">Pending</span>{% endif %}</td>
+        <td class="actions">
+          <a href="{{ url_for('data_entry_form', entry_id=entry['id']) }}">Edit</a>
+          <form method="post" action="{{ url_for('data_entry_delete', entry_id=entry['id']) }}" onsubmit="return confirm('Delete this data entry?');">
+            <button type="submit" class="link-button danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9">No data entries recorded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

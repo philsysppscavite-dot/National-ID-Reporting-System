@@ -107,6 +107,18 @@ def _credentials() -> Credentials:
     )
 
 
+def get_authorized_client() -> "gspread.Client":
+    """Public helper: returns an authorized gspread client using the same
+    service-account credentials this module already uses for Users /
+    NidConcerns, so any feature that needs to talk to a *different*
+    spreadsheet (e.g. exporting Data Entries to an external logsheet)
+    doesn't need to duplicate credential-loading logic."""
+    global _client
+    if _client is None:
+        _client = gspread.authorize(_credentials())
+    return _client
+
+
 def _get_spreadsheet():
     global _client, _spreadsheet
     if _spreadsheet is not None:

@@ -142,6 +142,72 @@ ON schedules (schedule_date);
 CREATE INDEX IF NOT EXISTS idx_schedule_assignments_date_role
 ON schedule_assignments (schedule_id, role);
 
+CREATE TABLE IF NOT EXISTS data_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporting_date TEXT NOT NULL,
+    city_municipality TEXT,
+    barangay TEXT,
+    specific_location TEXT,
+    type_of_rc TEXT,
+    rko_employee_id INTEGER,
+    applicant_first_name TEXT,
+    applicant_middle_name TEXT,
+    applicant_last_name TEXT,
+    applicant_suffix TEXT,
+    trn_or_pcn TEXT,
+    age_category TEXT,
+    service_availed TEXT,
+    ephilid_status TEXT,
+    ephilid_issued_date TEXT,
+    digital_id_assistance TEXT,
+    digital_id_generated TEXT,
+    digital_id_issue_notes TEXT,
+    dob_month TEXT,
+    dob_day TEXT,
+    dob_year TEXT,
+    gender TEXT,
+    old_trn TEXT,
+    contact_number TEXT,
+    overseas_registrant TEXT,
+    gov_ayuda_programs TEXT,
+    authenticated_status TEXT,
+    created_by_user_id INTEGER,
+    created_by_name TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (rko_employee_id) REFERENCES employees (id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_data_entries_date
+ON data_entries (reporting_date);
+
+CREATE INDEX IF NOT EXISTS idx_data_entries_city_date
+ON data_entries (city_municipality, reporting_date);
+
+-- Per-user "Entry Defaults": lets each RKO/user pre-fill and optionally
+-- lock (auto-input, read-only) specific Data Entry fields for themselves,
+-- e.g. their own name as RKO, today's date, their usual city/barangay.
+-- One row per user_id. Whether a field is locked is entirely the user's
+-- own choice (set from the "My Entry Defaults" page).
+CREATE TABLE IF NOT EXISTS entry_defaults (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    city_municipality TEXT,
+    city_municipality_locked INTEGER NOT NULL DEFAULT 0,
+    barangay TEXT,
+    barangay_locked INTEGER NOT NULL DEFAULT 0,
+    specific_location TEXT,
+    specific_location_locked INTEGER NOT NULL DEFAULT 0,
+    type_of_rc TEXT,
+    type_of_rc_locked INTEGER NOT NULL DEFAULT 0,
+    rko_employee_id INTEGER,
+    rko_employee_id_locked INTEGER NOT NULL DEFAULT 0,
+    reporting_date_mode TEXT NOT NULL DEFAULT 'blank',
+    reporting_date_locked INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (rko_employee_id) REFERENCES employees (id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS direct_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sender_id INTEGER NOT NULL,
@@ -213,6 +279,17 @@ def init_db() -> None:
     _ensure_column(db, "import_sources", "created_by_name", "TEXT")
     db.execute(
         "CREATE INDEX IF NOT EXISTS idx_outputs_source_ref ON employee_outputs (source_ref)"
+    )
+    _ensure_column(db, "data_entries", "created_by_user_id", "INTEGER")
+    _ensure_column(db, "data_entries", "created_by_name", "TEXT")
+    _ensure_column(db, "data_entries", "sent_to_sheet", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(db, "data_entries", "sent_to_sheet_at", "TEXT")
+    db.execute(
+        "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
+        (
+            "trn_logsheet_url",
+            "https://docs.google.com/spreadsheets/d/1_MjBiPft36kYqFI-23J3fMOdeihBeboDlNyHTB4FUYQ/edit?gid=2009676142#gid=2009676142",
+        ),
     )
     db.commit()
 

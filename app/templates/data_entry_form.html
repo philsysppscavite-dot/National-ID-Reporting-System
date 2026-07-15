@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Data Entry</p>
+    <h2>{{ "Edit Data Entry" if entry else "Add Data Entry" }}</h2>
+  </div>
+  <a class="button-link secondary" href="{{ url_for('data_entries') }}">Back</a>
+</section>
+
+<section class="panel form-panel">
+  <form method="post" class="grid-form">
+
+    <div class="form-section-title">Registration Details</div>
+
+    <label>Reporting Date
+      {% set locked = 'reporting_date' in locked_fields %}
+      {% set date_value = entry['reporting_date'] if entry else default_values.get('reporting_date', '') %}
+      <input type="date" name="reporting_date" value="{{ date_value }}" required {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
+    </label>
+
+    <label>City / Municipality
+      {% set locked = 'city_municipality' in locked_fields %}
+      {% set selected_city = entry['city_municipality'] if entry else default_values.get('city_municipality', '') %}
+      <select name="city_municipality" {% if locked %}disabled{% endif %}>
+        <option value="">Select city / municipality</option>
+        {% for city in city_municipalities %}
+        <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>{{ city }}</option>
+        {% endfor %}
+        {% if selected_city and selected_city not in city_municipalities %}
+        <option value="{{ selected_city }}" selected>{{ selected_city }}</option>
+        {% endif %}
+      </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
+    </label>
+
+    <label>Barangay
+      {% set locked = 'barangay' in locked_fields %}
+      <input type="text" name="barangay" value="{{ entry['barangay'] if entry else default_values.get('barangay', '') }}" data-title-case {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
+    </label>
+
+    <label>Specific Location
+      {% set locked = 'specific_location' in locked_fields %}
+      <input type="text" name="specific_location" value="{{ entry['specific_location'] if entry else default_values.get('specific_location', '') }}" data-title-case {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
+    </label>
+
+    <label>Type of RC
+      {% set locked = 'type_of_rc' in locked_fields %}
+      <input type="text" name="type_of_rc" value="{{ entry['type_of_rc'] if entry else default_values.get('type_of_rc', '') }}" placeholder="e.g. Fixed / Mobile / Pop-up" {% if locked %}readonly{% endif %}>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
+    </label>
+
+    <label>Name of RKO
+      {% set locked = 'rko_employee_id' in locked_fields %}
+      {% set selected_rko = entry['rko_employee_id'] if entry else default_values.get('rko_employee_id', '') %}
+      <select name="rko_employee_id" {% if locked %}disabled{% endif %}>
+        <option value="">Select RKO</option>
+        {% for employee in employees %}
+        <option value="{{ employee['id'] }}" {% if selected_rko|string == employee['id']|string %}selected{% endif %}>{{ employee["full_name"] }}</option>
+        {% endfor %}
+      </select>
+      {% if locked %}<span class="locked-field-note">🔒 Locked to your default</span>{% endif %}
+    </label>
+
+    <div class="form-section-title">Applicant Information</div>
+
+    <label>First Name
+      <input type="text" name="applicant_first_name" value="{{ entry['applicant_first_name'] if entry else '' }}" data-title-case required>
+    </label>
+
+    <label>Middle Name
+      <input type="text" name="applicant_middle_name" value="{{ entry['applicant_middle_name'] if entry else '' }}" data-title-case>
+    </label>
+
+    <label>Last Name
+      <input type="text" name="applicant_last_name" value="{{ entry['applicant_last_name'] if entry else '' }}" data-title-case required>
+    </label>
+
+    <label>Suffix
+      <input type="text" name="applicant_suffix" value="{{ entry['applicant_suffix'] if entry else '' }}" placeholder="Jr., Sr., III, etc.">
+    </label>
+
+    <label class="field-hint">Date of Birth - Month
+      {% set selected_month = entry['dob_month'] if entry else '' %}
+      <select name="dob_month">
+        <option value="">Month</option>
+        {% for month in dob_month_options %}
+        <option value="{{ month }}" {% if selected_month == month %}selected{% endif %}>{{ month }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="field-hint">Date of Birth - Day
+      <input type="number" name="dob_day" min="1" max="31" value="{{ entry['dob_day'] if entry else '' }}" placeholder="e.g. 08">
+    </label>
+
+    <label class="field-hint">Date of Birth - Year
+      <input type="number" name="dob_year" min="1900" max="2100" value="{{ entry['dob_year'] if entry else '' }}" placeholder="e.g. 1993">
+    </label>
+
+    <label>Gender
+      {% set selected_gender = entry['gender'] if entry else '' %}
+      <select name="gender">
+        <option value="">Select gender</option>
+        {% for option in gender_options %}
+        <option value="{{ option }}" {% if selected_gender == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Age Category
+      <input type="text" name="age_category" value="{{ entry['age_category'] if entry else '' }}">
+    </label>
+
+    <label>Contact Number of Applicant / Guardian / Parent
+      <input type="text" name="contact_number" value="{{ entry['contact_number'] if entry else '' }}" placeholder="09171234567">
+    </label>
+
+    <label>Overseas Registrant?
+      {% set selected_overseas = entry['overseas_registrant'] if entry else '' %}
+      <select name="overseas_registrant">
+        <option value="">Select</option>
+        {% for option in overseas_registrant_options %}
+        <option value="{{ option }}" {% if selected_overseas == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="form-section-title">Transaction</div>
+
+    <label>Transaction Reference Number / National ID Card Number
+      <input type="text" name="trn_or_pcn" value="{{ entry['trn_or_pcn'] if entry else '' }}">
+    </label>
+
+    <label class="field-hint">For Recaptured Applicants - Old TRN (29 digits)
+      <input type="text" name="old_trn" value="{{ entry['old_trn'] if entry else '' }}" pattern="\d{29}" maxlength="29" placeholder="29-digit number">
+    </label>
+
+    <label>Services Availed
+      {% set selected_service = entry['service_availed'] if entry else '' %}
+      <select name="service_availed">
+        <option value="">Select service availed</option>
+        {% for service in service_types %}
+        <option value="{{ service }}" {% if selected_service == service %}selected{% endif %}>{{ service }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="form-section-title">ePhilID</div>
+
+    <label>ePhilID Status
+      <input type="text" name="ephilid_status" value="{{ entry['ephilid_status'] if entry else '' }}" placeholder="e.g. Issued / Not Issued">
+    </label>
+
+    <label>ePhilID Issued Date
+      <input type="date" name="ephilid_issued_date" value="{{ entry['ephilid_issued_date'] if entry else '' }}">
+    </label>
+
+    <div class="form-section-title">Assistance to Generation of Digital National ID</div>
+
+    <label>Assistance Given
+      {% set selected_assist = entry['digital_id_assistance'] if entry else '' %}
+      <select name="digital_id_assistance">
+        <option value="">Select</option>
+        {% for value, label in digital_id_assistance_options %}
+        <option value="{{ value }}" {% if selected_assist == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Successfully Generated?
+      {% set selected_generated = entry['digital_id_generated'] if entry else '' %}
+      <select name="digital_id_generated">
+        <option value="">Select</option>
+        {% for option in yes_no_options %}
+        <option value="{{ option }}" {% if selected_generated == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="full-row">If generation is unsuccessful, indicate issues
+      <textarea name="digital_id_issue_notes" rows="2">{{ entry['digital_id_issue_notes'] if entry else '' }}</textarea>
+    </label>
+
+    <div class="form-section-title">Other</div>
+
+    <label>Government Ayuda Programs
+      <input type="text" name="gov_ayuda_programs" value="{{ entry['gov_ayuda_programs'] if entry else '' }}">
+    </label>
+
+    <label>Authenticated
+      {% set selected_auth = entry['authenticated_status'] if entry else '' %}
+      <select name="authenticated_status">
+        <option value="">Not applicable</option>
+        {% for option in authenticated_options %}
+        <option value="{{ option }}" {% if selected_auth == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="full-row">
+      <button type="submit">Save Data Entry</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -26,6 +26,8 @@
         </a>
         <a href="{{ url_for('employees') }}" class="{{ 'active' if request.endpoint in ['employees', 'employee_form'] else '' }}">Employees</a>
         <a href="{{ url_for('schedules') }}" class="{{ 'active' if request.endpoint in ['schedules', 'schedule_form'] else '' }}">Schedule</a>
+        <a href="{{ url_for('data_entries') }}" class="{{ 'active' if request.endpoint in ['data_entries', 'data_entry_form'] else '' }}">Data Entry</a>
+        <a href="{{ url_for('entry_defaults_form') }}" class="{{ 'active' if request.endpoint == 'entry_defaults_form' else '' }}">My Entry Defaults</a>
         <a href="{{ url_for('outputs') }}" class="{{ 'active' if request.endpoint in ['outputs', 'output_form'] else '' }}">Employee Output</a>
         <a href="{{ url_for('output_totals') }}" class="{{ 'active' if request.endpoint == 'output_totals' else '' }}">Output Totals</a>
         <a href="{{ url_for('dar_report') }}" class="{{ 'active' if request.endpoint == 'dar_report' else '' }}">DAR</a>

@@ -333,6 +333,49 @@ h4 {
   flex-wrap: wrap;
 }
 
+.page-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.field-lock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-600, #556);
+}
+
+.field-lock input {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.field-lock input:disabled {
+  cursor: not-allowed;
+}
+
+.field-lock-hint {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+}
+
+.locked-field-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--blue-700);
+  margin-top: 6px;
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
@@ -495,6 +538,31 @@ h4 {
 
 .full-row {
   grid-column: 1 / -1;
+}
+
+.form-section-title {
+  grid-column: 1 / -1;
+  margin: 8px 0 -4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.form-section-title:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.field-hint {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--ink-500);
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 label {

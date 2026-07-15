@@ -11,15 +11,23 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from werkzeug.utils import secure_filename
 
-from .auth import current_role, current_user_id, roles_required
+from .auth import current_role, current_user_id, is_isa_or_admin, roles_required
 from .db import ROLE_ADMIN, ROLE_ISA, ROLE_USER, ROLES
 from .repository import (
+    CITY_MUNICIPALITIES,
     SERVICE_TYPES,
     NID_CONCERN_TYPES,
     NID_CONCERN_STATUSES,
+    GENDER_OPTIONS,
+    DIGITAL_ID_ASSISTANCE_OPTIONS,
+    YES_NO_OPTIONS,
+    OVERSEAS_REGISTRANT_OPTIONS,
+    AUTHENTICATED_OPTIONS,
+    DOB_MONTH_OPTIONS,
     add_concern_message,
     create_nid_concern,
     create_user,
+    delete_data_entry,
     delete_schedule,
     output_summary_grand_totals,
     delete_employee,
@@ -28,7 +36,9 @@ from .repository import (
     delete_nid_concern,
     employee_output_totals,
     fetch_settings,
+    get_data_entry,
     get_employee,
+    get_entry_defaults,
     get_output,
     get_signatory,
     get_nid_concern,
@@ -44,6 +54,7 @@ from .repository import (
     list_active_users,
     list_concern_messages,
     list_conversation,
+    list_data_entries,
     list_employees,
     list_import_sources,
     list_nid_concerns,
@@ -54,6 +65,7 @@ from .repository import (
     list_signatories,
     list_users,
     mark_concern_client_informed,
+    mark_data_entries_sent_to_sheet,
     monthly_city_records,
     NID_CONCERN_STATUS_PROGRESS,
     nid_concern_matrix_summary,
@@ -61,7 +73,10 @@ from .repository import (
     nid_concern_monthly_trend,
     nid_concern_progress,
     output_per_person_rows,
+    resolve_entry_defaults_for_form,
+    save_data_entry,
     save_employee,
+    save_entry_defaults,
     save_output,
     save_schedule,
     save_signatory,
@@ -74,6 +89,7 @@ from .repository import (
     update_user,
     user_can_view_concern,
 )
+from .services.export import ExportError, export_data_entries_to_sheet
 from .services.importers import import_from_apps_script, import_from_csv_url, reimport_source
 from .services.reports import (
     build_dar_workbook,
@@ -87,33 +103,6 @@ from .services.reports import (
     generate_all_employees_output_reports_by_date,
     generate_schedule_report,
 )
-
-CITY_MUNICIPALITIES = [
-    "ALFONSO",
-    "AMADEO",
-    "BACOOR CITY",
-    "CARMONA",
-    "CAVITE CITY",
-    "CITY OF DASMARIÑAS",
-    "GENERAL EMILIO AGUINALDO",
-    "CITY OF GENERAL TRIAS",
-    "IMUS CITY",
-    "INDANG",
-    "KAWIT",
-    "MAGALLANES",
-    "MARAGONDON",
-    "MENDEZ (MENDEZ-NUÑEZ)",
-    "NAIC",
-    "NOVELETA",
-    "ROSARIO",
-    "SILANG",
-    "TAGAYTAY CITY",
-    "TANZA",
-    "TERNATE",
-    "TRECE MARTIRES CITY (Capital)",
-    "GEN. MARIANO ALVAREZ",
-]
-
 
 def register_routes(app):
     @app.get("/health")
@@ -527,6 +516,111 @@ def register_routes(app):
         delete_output(output_id)
         flash("Employee output deleted.", "success")
         return redirect(url_for("outputs"))
+
+    @app.route("/data-entries")
+    def data_entries():
+        filters = {
+            "city_municipality": request.args.get("city_municipality") or None,
+            "rko_employee_id": request.args.get("rko_employee_id") or None,
+            "start_date": request.args.get("start_date") or "",
+            "end_date": request.args.get("end_date") or "",
+            "search": request.args.get("search") or "",
+        }
+        filters = {key: value for key, value in filters.items() if value}
+        entries = list_data_entries(filters)
+        return render_template(
+            "data_entries.html",
+            entries=entries,
+            employees=list_employees(),
+            filters=filters,
+        )
+
+    @app.route("/data-entries/new", methods=["GET", "POST"])
+    @app.route("/data-entries/<int:entry_id>/edit", methods=["GET", "POST"])
+    def data_entry_form(entry_id=None):
+        entry = get_data_entry(entry_id) if entry_id else None
+        # Auto-lock only applies to *new* entries -- editing an existing
+        # entry always shows/edits its own already-saved values.
+        default_values, locked_fields = (
+            resolve_entry_defaults_for_form(current_user_id()) if entry_id is None else ({}, set())
+        )
+        if request.method == "POST":
+            try:
+                form_data = request.form.to_dict()
+                # A locked field is only ever a convenience for the user who
+                # locked it -- enforce the saved default server-side so a
+                # disabled/read-only field can never be overridden by a
+                # tampered submission.
+                for field in locked_fields:
+                    form_data[field] = default_values.get(field, "")
+                save_data_entry(
+                    entry_id,
+                    form_data,
+                    created_by_user_id=current_user_id(),
+                    created_by_name=session.get("full_name"),
+                )
+                flash("Data entry saved successfully.", "success")
+                return redirect(url_for("data_entries"))
+            except ValueError as exc:
+                flash(str(exc), "error")
+                entry = form_data
+        return render_template(
+            "data_entry_form.html",
+            entry=entry,
+            default_values=default_values,
+            locked_fields=locked_fields,
+            employees=list_employees(),
+            gender_options=GENDER_OPTIONS,
+            digital_id_assistance_options=DIGITAL_ID_ASSISTANCE_OPTIONS,
+            yes_no_options=YES_NO_OPTIONS,
+            overseas_registrant_options=OVERSEAS_REGISTRANT_OPTIONS,
+            authenticated_options=AUTHENTICATED_OPTIONS,
+            dob_month_options=DOB_MONTH_OPTIONS,
+            service_types=SERVICE_TYPES,
+        )
+
+    @app.post("/data-entries/<int:entry_id>/delete")
+    def data_entry_delete(entry_id):
+        delete_data_entry(entry_id)
+        flash("Data entry deleted.", "success")
+        return redirect(url_for("data_entries"))
+
+    @app.route("/my-entry-defaults", methods=["GET", "POST"])
+    def entry_defaults_form():
+        user_id = current_user_id()
+        if request.method == "POST":
+            try:
+                save_entry_defaults(user_id, request.form)
+                flash("Your entry defaults were saved.", "success")
+                return redirect(url_for("entry_defaults_form"))
+            except ValueError as exc:
+                flash(str(exc), "error")
+        return render_template(
+            "entry_defaults_form.html",
+            defaults=get_entry_defaults(user_id),
+            employees=list_employees(),
+        )
+
+    @app.post("/data-entries/send-to-sheet")
+    def data_entries_send_to_sheet():
+        # Regular users send only their own not-yet-sent entries;
+        # Administrators/ISA can send everyone's, matching who's allowed to
+        # see the full log on the Data Entry page.
+        filters = {"sent_to_sheet": False}
+        if not is_isa_or_admin():
+            filters["created_by_user_id"] = current_user_id()
+        entries = list_data_entries(filters)
+        if not entries:
+            flash("There are no new data entries to send.", "success")
+            return redirect(url_for("data_entries"))
+        try:
+            sheet_url = fetch_settings().get("trn_logsheet_url", "")
+            sent_count = export_data_entries_to_sheet(entries, sheet_url)
+            mark_data_entries_sent_to_sheet([e["id"] for e in entries])
+            flash(f"Sent {sent_count} data entr{'y' if sent_count == 1 else 'ies'} to the Google Sheet.", "success")
+        except ExportError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("data_entries"))
 
     @app.route("/output-totals")
     def output_totals():
@@ -956,8 +1050,9 @@ def register_routes(app):
 
     @app.post("/settings")
     def save_settings():
-        for key in ("organization_name", "report_title"):
-            set_setting(key, request.form.get(key, "").strip())
+        for key in ("organization_name", "report_title", "trn_logsheet_url"):
+            if key in request.form:
+                set_setting(key, request.form.get(key, "").strip())
         flash("Report settings updated.", "success")
         return redirect(url_for("dashboard"))
 
